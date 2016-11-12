@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ArdourMIDIBindings version="1.1.0" name="Korg Taktile ( mode 9 )">
+
+  <DeviceInfo bank-size="8"/>
+	
+  <Binding channel="1" ctl="41" function="transport-roll"/>
+  <Binding channel="1" ctl="42" function="transport-stop"/>
+  <Binding channel="1" ctl="43" action="Transport/Rewind"/>
+  <Binding channel="1" ctl="44" action="Transport/Forward"/>
+  <Binding channel="1" ctl="45" function="toggle-rec-enable"/>
+  <Binding channel="1" ctl="46" function="loop-toggle"/>
+  <Binding msg="B0 3c 7f" action="Editor/add-location-from-playhead"/>
+  <Binding msg="B0 3d 7f" action="Editor/jump-backward-to-mark"/>
+  <Binding msg="B0 3e 7f" action="Editor/jump-forward-to-mark"/>
+  <Binding msg="B0 3a 7f" function="prev-bank"/>
+  <Binding msg="B0 3b 7f" function="next-bank"/>
+
+
+<!--  Channel controls:                         	 		--> 
+<!--  NOTE:  use mode #9, Generic MIDI to enable these 		--> 
+
+
+
+  <Binding channel="1" ctl="16" uri="/route/pandirection B1"/>	
+  <Binding channel="1" ctl="32" uri="/route/solo B1"/>
+  <Binding channel="1" ctl="48" uri="/route/mute B1"/>
+  <Binding channel="1" ctl="83" uri="/route/recenable B1"/>
+  <Binding channel="1" ctl="24" uri="/route/gain B1"/>
+  
+  <Binding channel="1" ctl="17" uri="/route/pandirection B2"/>
+  <Binding channel="1" ctl="33" uri="/route/solo B2"/>
+  <Binding channel="1" ctl="49" uri="/route/mute B2"/>
+  <Binding channel="1" ctl="84" uri="/route/recenable B2"/>
+  <Binding channel="1" ctl="25" uri="/route/gain B2"/>
+  
+  <Binding channel="1" ctl="18" uri="/route/pandirection B3"/>
+  <Binding channel="1" ctl="34" uri="/route/solo B3"/>
+  <Binding channel="1" ctl="50" uri="/route/mute B3"/>
+  <Binding channel="1" ctl="85" uri="/route/recenable B3"/>
+  <Binding channel="1" ctl="26" uri="/route/gain B3"/>
+  
+  <Binding channel="1" ctl="19" uri="/route/pandirection B4"/>
+  <Binding channel="1" ctl="35" uri="/route/solo B4"/>
+  <Binding channel="1" ctl="51" uri="/route/mute B4"/>
+  <Binding channel="1" ctl="86" uri="/route/recenable B4"/>
+  <Binding channel="1" ctl="27" uri="/route/gain B4"/>
+  
+  <Binding channel="1" ctl="20" uri="/route/pandirection B5"/>
+  <Binding channel="1" ctl="36" uri="/route/solo B5"/>
+  <Binding channel="1" ctl="52" uri="/route/mute B5"/>
+  <Binding channel="1" ctl="87" uri="/route/recenable B5"/>
+  <Binding channel="1" ctl="28" uri="/route/gain B5"/>
+  
+  <Binding channel="1" ctl="21" uri="/route/pandirection B6"/>
+  <Binding channel="1" ctl="37" uri="/route/solo B6"/>
+  <Binding channel="1" ctl="53" uri="/route/mute B6"/>
+  <Binding channel="1" ctl="88" uri="/route/recenable B6"/>
+  <Binding channel="1" ctl="29" uri="/route/gain B6"/>
+  
+  <Binding channel="1" ctl="22" uri="/route/pandirection B7"/>
+  <Binding channel="1" ctl="38" uri="/route/solo B7"/>
+  <Binding channel="1" ctl="54" uri="/route/mute B7"/>
+  <Binding channel="1" ctl="89" uri="/route/recenable B7"/>
+  <Binding channel="1" ctl="30" uri="/route/gain B7"/>
+  
+  <Binding channel="1" ctl="23" uri="/route/pandirection B8"/>
+  <Binding channel="1" ctl="39" uri="/route/solo B8"/>
+  <Binding channel="1" ctl="55" uri="/route/mute B8"/>
+  <Binding channel="1" ctl="90" uri="/route/recenable B8"/>
+  <Binding channel="1" ctl="31" uri="/route/gain B8"/>
+  
+ </ArdourMIDIBindings>

@@ -1,0 +1,133 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from waflib.extras import autowaf as autowaf
+import os
+
+# Version of this package (even if built as a child)
+AUDIOGRAPHER_VERSION = '0.0.0'
+
+# Library version (UNIX style major, minor, micro)
+# major increment <=> incompatible changes
+# minor increment <=> compatible changes (additions)
+# micro increment <=> no interface changes
+# Version history:
+#   0.0.0 = 0,0,0
+AUDIOGRAPHER_LIB_VERSION = '0.0.0'
+
+# Variables for 'waf dist'
+APPNAME = 'audiographer'
+VERSION = AUDIOGRAPHER_VERSION
+
+# Mandatory variables
+top = '.'
+out = 'build'
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    conf.load('compiler_cxx')
+    autowaf.configure(conf)
+
+    autowaf.check_pkg(conf, 'cppunit', uselib_store='CPPUNIT', atleast_version='1.12.0', mandatory=False)
+    autowaf.check_pkg(conf, 'sigc++-2.0', uselib_store='SIGCPP', atleast_version='2.0', mandatory=False)
+    autowaf.check_pkg(conf, 'glib-2.0', uselib_store='GLIB', atleast_version='2.2', mandatory=False)
+    autowaf.check_pkg(conf, 'glibmm-2.4', uselib_store='GLIBMM', atleast_version='2.14.0', mandatory=False)
+    autowaf.check_pkg(conf, 'gthread-2.0', uselib_store='GTHREAD', atleast_version='2.14.0', mandatory=False)
+    autowaf.check_pkg(conf, 'samplerate', uselib_store='SAMPLERATE', atleast_version='0.1.7', mandatory=False)
+    autowaf.check_pkg(conf, 'sndfile', uselib_store='SNDFILE', atleast_version='1.0.18', mandatory=False)
+    autowaf.check_pkg(conf, 'fftw3f', uselib_store='FFTW3F', mandatory=True)
+    autowaf.check_pkg(conf, 'fftw3f', uselib_store='FFTW35F', atleast_version='3.3.5', mandatory=False)
+
+    # Boost headers
+    autowaf.check_header(conf, 'cxx', 'boost/shared_ptr.hpp')
+    autowaf.check_header(conf, 'cxx', 'boost/format.hpp')
+
+def build(bld):
+
+    # Headers
+    #bld.install_files('${INCLUDEDIR}/audiographer', bld.path.ant_glob('audiographer/*.h'))
+    #bld.install_files('${INCLUDEDIR}/audiographer/general', bld.path.ant_glob('audiographer/general/*.h'))
+    #bld.install_files('${INCLUDEDIR}/audiographer/sndfile', bld.path.ant_glob('audiographer/sndfile/*.h'))
+    #bld.install_files('${INCLUDEDIR}/audiographer/utils', bld.path.ant_glob('audiographer/utils/*.h'))
+
+    #bld.env['BUILD_TESTS'] = True
+    bld.env['HAVE_ALL_GTHREAD'] = (bld.is_defined('HAVE_GLIB')
+                                   and bld.is_defined('HAVE_GLIBMM')
+                                   and bld.is_defined('HAVE_GTHREAD'))
+
+    if bld.is_defined('HAVE_FFTW35F') and bld.env['build_target'] != 'mingw':
+        bld.env['LIB_FFTW3F'] += ['fftw3f_threads']
+
+    audiographer_sources = [
+        'private/gdither/gdither.cc',
+        'src/general/sample_format_converter.cc',
+        'src/routines.cc',
+        'src/debug_utils.cc',
+        'src/general/analyser.cc',
+        'src/general/broadcast_info.cc',
+        'src/general/loudness_reader.cc',
+        'src/general/normalizer.cc'
+        ]
+    if bld.is_defined('HAVE_SAMPLERATE'):
+        audiographer_sources += [ 'src/general/sr_converter.cc' ]
+
+    if bld.is_defined ('INTERNAL_SHARED_LIBS'):
+        audiographer              = bld.shlib(features = 'c cxx cshlib cxxshlib', source=audiographer_sources)
+        # macros for this shared library
+        audiographer.defines      = [ 'LIBAUDIOGRAPHER_DLL_EXPORTS=1' ]
+    else:
+        audiographer              = bld.stlib(features = 'c cxx cstlib cxxstlib', source=audiographer_sources)
+        audiographer.cxxflags     = [ '-fPIC' ]
+        audiographer.cflags       = [ '-fPIC' ]
+        audiographer.defines      = []
+
+    audiographer.name           = 'libaudiographer'
+    audiographer.target         = 'audiographer'
+    audiographer.export_includes = ['.', './src']
+    audiographer.includes       = ['.', './src','../ardour','../timecode','../evoral']
+    audiographer.uselib         = 'GLIB GLIBMM GTHREAD SAMPLERATE SNDFILE FFTW3F VAMPSDK VAMPHOSTSDK XML'
+    audiographer.use            = 'libpbd'
+    audiographer.vnum           = AUDIOGRAPHER_LIB_VERSION
+    audiographer.install_path   = bld.env['LIBDIR']
+
+
+    if bld.env['BUILD_TESTS'] and bld.is_defined('HAVE_CPPUNIT'):
+        # Unit tests
+        obj              = bld(features = 'cxx cxxprogram')
+        obj.source       = '''
+                tests/test_runner.cc
+                tests/type_utils_test.cc
+                tests/utils/identity_vertex_test.cc
+                tests/general/interleaver_test.cc
+                tests/general/deinterleaver_test.cc
+                tests/general/interleaver_deinterleaver_test.cc
+                tests/general/chunker_test.cc
+                tests/general/sample_format_converter_test.cc
+                tests/general/peak_reader_test.cc
+                tests/general/normalizer_test.cc
+                tests/general/silence_trimmer_test.cc
+        '''
+
+        if bld.is_defined('HAVE_ALL_GTHREAD'):
+            obj.source += '''
+                    tests/general/threader_test.cc
+            '''
+
+        if bld.is_defined('HAVE_SNDFILE'):
+            obj.source += '''
+                    tests/sndfile/tmp_file_test.cc
+            '''
+
+        if bld.is_defined('HAVE_SAMPLERATE'):
+            obj.source += '''
+                    tests/general/sr_converter_test.cc
+            '''
+
+        obj.use          = 'libaudiographer'
+        obj.uselib       = 'CPPUNIT GLIBMM SAMPLERATE SNDFILE FFTW3F VAMPSDK VAMPHOSTSDK'
+        obj.target       = 'run-tests'
+        obj.install_path = ''
+
+def shutdown():
+    autowaf.shutdown()

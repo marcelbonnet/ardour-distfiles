@@ -1,0 +1,26 @@
+#!/usr/bin/env python
+from waflib.extras import autowaf as autowaf
+from waflib import Options
+import os
+import re
+import sys
+
+# Mandatory variables
+top = '.'
+out = 'build'
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    conf.load('compiler_c')
+    autowaf.configure(conf)
+
+def build(bld):
+    obj = bld(features = 'c cprogram')
+    obj.source = [ 'abicheck.c' ]
+    obj.target = 'gcc-glibmm-abi-check'
+    obj.name = 'gcc-glibmm-abi-check'
+    if re.search ("freebsd", sys.platform) == None:
+        obj.lib = 'dl'
+    obj.install_path = None

@@ -1,0 +1,904 @@
+#!/usr/bin/env python
+from waflib.extras import autowaf as autowaf
+from waflib import Options, TaskGen
+import waflib.Logs as Logs, waflib.Utils as Utils
+import os
+import shutil
+import sys
+import re
+import time
+from waflib.Task import Task
+from waflib.Tools import winres
+import subprocess
+import glob
+import copy
+
+# Mandatory variables
+top = '.'
+out = 'build'
+
+from waflib import TaskGen
+@TaskGen.extension('.m')
+def m_hook(self, node):
+	"""Alias .m files to be compiled the same as .c files, gcc will do the right thing."""
+	return self.create_compiled_task('c', node)
+
+path_prefix = 'gtk2_ardour/'
+
+gtk2_ardour_sources = [
+        'about.cc',
+        'actions.cc',
+        'add_route_dialog.cc',
+        'ambiguous_file_dialog.cc',
+        'analysis_window.cc',
+        'ardour_button.cc',
+        'ardour_dialog.cc',
+        'ardour_display.cc',
+        'ardour_dropdown.cc',
+        'ardour_http.cc',
+        'ardour_knob.cc',
+        'ardour_spinner.cc',
+        'ardour_ui.cc',
+        'ardour_ui2.cc',
+        'ardour_ui_dependents.cc',
+        'ardour_ui_dialogs.cc',
+        'ardour_ui_ed.cc',
+        'ardour_ui_mixer.cc',
+        'ardour_ui_options.cc',
+        'ardour_window.cc',
+        'audio_clock.cc',
+        'audio_region_editor.cc',
+        'audio_region_view.cc',
+        'audio_streamview.cc',
+        'audio_time_axis.cc',
+        'automation_controller.cc',
+        'automation_line.cc',
+        'automation_region_view.cc',
+        'automation_streamview.cc',
+        'automation_time_axis.cc',
+        'axis_view.cc',
+        'big_clock_window.cc',
+        'bundle_manager.cc',
+        'button_joiner.cc',
+        'clock_group.cc',
+        'color_theme_manager.cc',
+        'configinfo.cc',
+        'control_point.cc',
+        'control_point_dialog.cc',
+        'control_slave_ui.cc',
+        'cursor_context.cc',
+        'curvetest.cc',
+        'debug.cc',
+        'duplicate_routes_dialog.cc',
+        'edit_note_dialog.cc',
+        'editing.cc',
+        'editor.cc',
+        'editor_actions.cc',
+        'editor_audio_import.cc',
+        'editor_pt_import.cc',
+        'editor_audiotrack.cc',
+        'editor_canvas.cc',
+        'editor_canvas_events.cc',
+        'editor_component.cc',
+        'editor_cursors.cc',
+        'editor_drag.cc',
+        'editor_route_groups.cc',
+        'editor_export_audio.cc',
+        'editor_group_tabs.cc',
+        'editor_keys.cc',
+        'editor_locations.cc',
+        'editor_markers.cc',
+        'editor_mixer.cc',
+        'editor_mouse.cc',
+        'editor_ops.cc',
+        'editor_regions.cc',
+        'editor_routes.cc',
+        'editor_rulers.cc',
+        'editor_selection.cc',
+        'editor_snapshots.cc',
+        'editor_summary.cc',
+        'editor_tempodisplay.cc',
+        'editor_timefx.cc',
+        'engine_dialog.cc',
+        'enums.cc',
+        'export_channel_selector.cc',
+        'export_dialog.cc',
+        'export_file_notebook.cc',
+        'export_filename_selector.cc',
+        'export_format_dialog.cc',
+        'export_format_selector.cc',
+        'export_preset_selector.cc',
+        'export_report.cc',
+        'export_timespan_selector.cc',
+        'fft.cc',
+        'fft_graph.cc',
+        'fft_result.cc',
+        'floating_text_entry.cc',
+        'sfdb_freesound_mootcher.cc',
+        'gain_meter.cc',
+        'generic_pluginui.cc',
+        'ghostregion.cc',
+        'global_port_matrix.cc',
+        'group_tabs.cc',
+        'gtk_pianokeyboard.c',
+        'gui_object.cc',
+        'insert_remove_time_dialog.cc',
+        'instrument_selector.cc',
+        'interthread_progress_window.cc',
+        'io_selector.cc',
+        'hit.cc',
+        'keyboard.cc',
+        'keyeditor.cc',
+        'latency_gui.cc',
+        'led.cc',
+        'level_meter.cc',
+        'location_ui.cc',
+        'lua_script_manager.cc',
+        'luainstance.cc',
+        'luawindow.cc',
+        'main.cc',
+        'main_clock.cc',
+        'marker.cc',
+        'midi_automation_line.cc',
+        'midi_channel_dialog.cc',
+        'midi_channel_selector.cc',
+        'midi_cut_buffer.cc',
+        'midi_export_dialog.cc',
+        'midi_list_editor.cc',
+        'midi_port_dialog.cc',
+        'midi_region_view.cc',
+        'midi_scroomer.cc',
+        'midi_selection.cc',
+        'midi_streamview.cc',
+        'midi_time_axis.cc',
+        'midi_tracer.cc',
+        'midi_velocity_dialog.cc',
+        'missing_file_dialog.cc',
+        'missing_plugin_dialog.cc',
+        'mixer_group_tabs.cc',
+        'mixer_strip.cc',
+        'mixer_ui.cc',
+        'meterbridge.cc',
+        'meter_strip.cc',
+        'meter_patterns.cc',
+        'monitor_section.cc',
+        'monitor_selector.cc',
+        'mono_panner.cc',
+        'mono_panner_editor.cc',
+        'mouse_cursors.cc',
+        'nag.cc',
+        'new_plugin_preset_dialog.cc',
+        'normalize_dialog.cc',
+        'note.cc',
+        'note_base.cc',
+        'note_player.cc',
+        'note_select_dialog.cc',
+        'nsm.cc',
+        'nsmclient.cc',
+        'option_editor.cc',
+        'opts.cc',
+        'panner2d.cc',
+        'panner_editor.cc',
+        'panner_interface.cc',
+        'panner_ui.cc',
+        'patch_change.cc',
+        'piano_roll_header.cc',
+        'pingback.cc',
+        'playlist_selector.cc',
+        'plugin_eq_gui.cc',
+        'plugin_pin_dialog.cc',
+        'plugin_setup_dialog.cc',
+        'plugin_selector.cc',
+        'plugin_ui.cc',
+        'port_group.cc',
+        'port_insert_ui.cc',
+        'port_matrix.cc',
+        'port_matrix_body.cc',
+        'port_matrix_column_labels.cc',
+        'port_matrix_component.cc',
+        'port_matrix_grid.cc',
+        'port_matrix_labels.cc',
+        'port_matrix_row_labels.cc',
+        'processor_box.cc',
+        'patch_change_dialog.cc',
+        'progress_reporter.cc',
+        'prompter.cc',
+        'public_editor.cc',
+        'quantize_dialog.cc',
+        'rc_option_editor.cc',
+        'region_editor.cc',
+        'region_gain_line.cc',
+        'region_layering_order_editor.cc',
+        'region_selection.cc',
+        'region_view.cc',
+        'return_ui.cc',
+        'rhythm_ferret.cc',
+        'route_group_dialog.cc',
+        'route_group_menu.cc',
+        'route_params_ui.cc',
+        'route_processor_selection.cc',
+        'route_time_axis.cc',
+        'route_ui.cc',
+        'ruler_dialog.cc',
+        'save_as_dialog.cc',
+        'search_path_option.cc',
+        'script_selector.cc',
+        'selection.cc',
+        'selection_memento.cc',
+        'send_ui.cc',
+        'session_dialog.cc',
+        'session_import_dialog.cc',
+        'session_metadata_dialog.cc',
+        'session_option_editor.cc',
+        'sfdb_ui.cc',
+        'shuttle_control.cc',
+        'soundcloud_export_selector.cc',
+        'splash.cc',
+        'speaker_dialog.cc',
+        'startup.cc',
+        'step_editor.cc',
+        'step_entry.cc',
+        'stereo_panner.cc',
+        'stereo_panner_editor.cc',
+        'streamview.cc',
+        'strip_silence_dialog.cc',
+        'sys_ex.cc',
+        'tape_region_view.cc',
+        'tempo_curve.cc',
+        'tempo_dialog.cc',
+        'tempo_lines.cc',
+        'theme_manager.cc',
+        'time_axis_view.cc',
+        'time_axis_view_item.cc',
+        'time_fx_dialog.cc',
+        'time_info_box.cc',
+        'time_selection.cc',
+        'timers.cc',
+        'tooltips.cc',
+        'track_selection.cc',
+        'track_view_list.cc',
+        'transform_dialog.cc',
+        'transpose_dialog.cc',
+        'ui_config.cc',
+        'utils.cc',
+        'vca_master_strip.cc',
+        'verbose_cursor.cc',
+        'visibility_group.cc',
+        'window_manager.cc',
+# video-timeline related sources:
+        'video_image_frame.cc',
+        'add_video_dialog.cc',
+        'editor_videotimeline.cc',
+        'vca_time_axis.cc',
+        'video_timeline.cc',
+        'video_monitor.cc',
+        'transcode_ffmpeg.cc',
+        'transcode_video_dialog.cc',
+        'video_server_dialog.cc',
+        'utils_videotl.cc',
+        'export_video_dialog.cc',
+        'export_video_infobox.cc',
+        'video_tool_paths.cc'
+]
+
+def enoify (major, minor):
+    # Code names based on
+    # https://en.wikipedia.org/wiki/Brian_Eno_discography
+    #
+    # sort Studio albums + Collaborative albums + Compilation albums by Month/Year.
+    # (no Singles, no EPs, no Video Albums, no Production)
+    if major == 3:
+        return "\\n\\\"E-No\\\""
+    elif major == 4:
+        if minor == 0:
+            return "\\n\\\"No Pussyfooting\\\""
+        elif minor == 1:
+            return "\\n\\\"Here Come the Warm Jets\\\""
+        elif minor == 2:
+            return "\\n\\\"Taking Tiger Mountain\\\""
+        elif minor == 3:
+            return "\\n\\\"Lady June's Linguistic Leprosy\\\""
+        elif minor == 4:
+            return "\\n\\\"Discreet Music\\\""
+        elif minor == 5:
+            return "\\n\\\"Another Green World\\\""
+        elif minor == 6:
+            return "\\n\\\"Evening Star\\\""
+        elif minor == 7:
+            return "\\n\\\"Cluster and Eno\\\""
+    elif major == 5:
+        if minor == 0:
+            return "\\n\\\"Before and After Science\\\""
+        elif minor == 1:
+            return "\\n\\\"After the Heat\\\""
+        elif minor == 2:
+            return "\\n\\\"Music for Airports\\\""
+        elif minor == 3:
+            return "\\n\\\"Music for Films\\\""
+        elif minor == 4:
+            return "\\n\\\"In a Land of Clear Colours\\\""
+    return "\\\"\\\""
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    conf.load('misc')
+    conf.load('compiler_cxx')
+    autowaf.configure(conf)
+
+    # TODO: Insert a sanity check for on OS X to ensure CoreAudio is present
+
+    autowaf.check_pkg(conf, 'fftw3f', uselib_store='FFTW3F',
+                      mandatory=True)
+    autowaf.check_pkg(conf, 'fftw3f', uselib_store='FFTW35F',
+                      atleast_version='3.3.5', mandatory=False)
+    autowaf.check_pkg(conf, 'flac', uselib_store='FLAC',
+                      atleast_version='1.2.1')
+    autowaf.check_pkg(conf, 'gthread-2.0', uselib_store='GTHREAD',
+                      atleast_version='2.10.1')
+    autowaf.check_pkg(conf, 'gtk+-2.0', uselib_store='GTK',
+                      atleast_version='2.18')
+    autowaf.check_pkg(conf, 'gtkmm-2.4', uselib_store='GTKMM',
+                      atleast_version='2.18')
+    autowaf.check_pkg(conf, 'ogg', uselib_store='OGG', atleast_version='1.1.2')
+    autowaf.check_pkg(conf, 'x11', uselib_store='X11', atleast_version='1.1', mandatory=False)
+    autowaf.check_pkg(conf, 'fontconfig', uselib_store='FONTCONFIG')
+
+
+    if sys.platform == 'darwin':
+        retval = conf.run_c_code (code='#include <AppKit/NSWindow.h>\n\
+        int main(void) { (void) NSWindowWillStartLiveResizeNotification; return 0; }\n',
+                                  env = conf.env.derive (),
+                                  features = [ 'c' ],
+                                  compiler = 'cc',
+                                  compile_filename='test.m',
+                                  mandatory = False,
+            )
+
+        if retval == 0:
+            autowaf.display_msg (conf, 'Checking for Cocoa live resizing constants', 'ok')
+            conf.define ('HAVE_COCOA_LIVE_RESIZING', 1)
+        else:
+            autowaf.display_msg (conf, 'Checking for Cocoa live resizing constants', 'too old - AU plugin windows will be fixed size')
+
+    conf.write_config_header('gtk2ardour-config.h', remove=False)
+
+    bak = conf.env['define_key']
+    conf.define('VERSIONSTRING', str (conf.env['VERSION']))
+    conf.define('CODENAME', enoify(int(conf.env['MAJOR']), int(conf.env['MINOR'])))
+    conf.env['define_key'] = ['VERSIONSTRING', 'CODENAME' ]
+    conf.write_config_header('gtk2ardour-version.h')
+    conf.env['define_key'] = bak;
+
+    # Boost headers
+    autowaf.check_header(conf, 'cxx', 'boost/shared_ptr.hpp')
+    autowaf.check_header(conf, 'cxx', 'boost/weak_ptr.hpp')
+
+# Add a waf `feature' to allow compilation of things using winegcc
+from waflib.TaskGen import feature
+@feature("wine")
+def set_winegcc(self):
+    self.env.LINK_CXX = self.env.LINK_CC = 'wineg++'
+    self.env.CC = 'winegcc'
+
+def _doPyp(infileName, deps = False):
+    outStr = ''
+    out = []
+    re_spaces = re.compile("\s+")
+
+    if infileName == '-':
+        fd = sys.stdin
+    else:
+        fd = open(infileName)
+    inLines = fd.readlines()
+    if fd != sys.stdin:
+        fd.close()
+
+
+    for line in inLines:
+        bits = re_spaces.split(line)
+        if bits[0] == '##include':
+            incName = bits[1]
+            if (deps):
+                out += [ incName ]
+            else:
+                # assume included file comes from same place as source file
+                incName = os.path.join (os.path.dirname (infileName), incName);
+                outStr += _doPyp(incName)
+        else:
+            if not deps:
+                outStr += line
+
+    # done
+    if deps:
+        return out
+    else:
+        return outStr
+
+def include_processor(task):
+    infileName = task.inputs[0].srcpath()
+    outfileName = os.path.join(out, task.outputs[0].bldpath())
+    fdOut = open (outfileName, "w")
+    fdOut.write (_doPyp(infileName))
+    fdOut.close ()
+
+
+def build_color_scheme(path, prefix):
+    f = open (path, 'r')
+    color_scheme = ''
+    for line in f:
+        if re.search ('^#@color', line):
+            line.strip() # remove newline
+            words = line.split()
+            if len(color_scheme):
+                color_scheme += ';'
+            color_scheme += prefix
+            color_scheme += '_'
+            color_scheme += words[1]
+            color_scheme += ':'
+            color_scheme += words[2]
+    f.close()
+    return color_scheme
+
+def build(bld):
+
+    VERSION = "%s.%s" % (bld.env['MAJOR'], bld.env['MINOR'])
+    I18N_PACKAGE = 'gtk2_ardour' + bld.env['MAJOR']
+
+    # Tool to dump lua-bindings (of gtk2ardour + libs)
+    if re.search ("linux", sys.platform) != None and bld.env['LUABINDINGDOC']:
+        obj = bld (features = 'cxx c cxxprogram')
+        obj.install_path = None
+        obj.source    = list(gtk2_ardour_sources)
+        obj.target    = 'luadoc'
+        obj.includes  = ['.', '../libs']
+        obj.ldflags   = ['-no-undefined']
+        obj.use       = [
+                'libpbd',
+                'libardour',
+                'libardour_cp',
+                'libtimecode',
+                'libmidipp',
+                'libgtkmm2ext',
+                'libcanvas',
+                'libptformat',
+                ]
+        obj.defines = [
+                'NOMAIN',
+                'PACKAGE="' + I18N_PACKAGE + '"',
+                'DATA_DIR="' + os.path.normpath(bld.env['DATADIR']) + '"',
+                'CONFIG_DIR="' + os.path.normpath(bld.env['SYSCONFDIR']) + '"',
+                'LOCALEDIR="' + os.path.normpath(bld.env['LOCALEDIR']) + '"',
+                ]
+        obj.linkflags = ''
+        obj.uselib    = 'UUID FLAC FONTCONFIG GLIBMM GTHREAD GTK OGG CURL DL GTKMM CANVAS FFTW3F LO TAGLIB XML '
+        obj.source += [ 'luadoc.cc', 'bundle_env_linux.cc' ]
+        if bld.is_defined('HAVE_SUIL'):
+            obj.source += [ 'lv2_plugin_ui.cc' ]
+            obj.use += [ 'SUIL' ]
+        if bld.is_defined('LXVST_SUPPORT'):
+            obj.source += [ 'vst_plugin_ui.cc' ]
+            obj.source += [ 'linux_vst_gui_support.cc', 'lxvst_plugin_ui.cc' ]
+            obj.defines += [ 'LXVST_SUPPORT' ]
+            obj.use += [ 'X11' ]
+
+
+    if bld.is_defined('WINDOWS_VST_SUPPORT') and bld.env['build_target'] != 'mingw':
+        # Windows VST support w/wine
+        # If we require VST support we build a stub main() and the FST library
+        # here using winegcc, and link it to the GTK front-end library
+        obj = bld (features = 'cxx c cxxprogram wine')
+        obj.source = ( '../libs/fst/vstwin.c', '../vst/winmain.c' )
+        #
+        # XXX do we really need to explicitly link to all of these for the wine executable?
+        #
+        obj.use          = [ 'libpbd',
+                             'libmidipp',
+                             'libardour',
+                             'libardour_cp',
+                             'libtimecode',
+                             'libmidipp',
+                             'libgtk2_ardour',
+                             'libgtkmm2ext',
+                             'libcanvas',
+                             'libptformat',
+                             ]
+        obj.target = 'ardour-' + str (bld.env['VERSION']) + '-vst.exe.so'
+        obj.includes  = [ '../libs/fst', '.' ]
+        obj.linkflags = ['-mwindows', '-Wl,--export-dynamic']
+        obj.linkflags += bld.env['LDFLAGS']
+        obj.defines = [ 'USE_WS_PREFIX']
+        obj.install_path = bld.env['DLLDIR']
+        # end of the wine executable
+
+        # now the shared library containing the GTK GUI for ardour
+        obj = bld (features = 'cxx c cxxshlib')
+        # operate on copy to avoid adding sources twice
+        obj.source    = list(gtk2_ardour_sources)
+        obj.includes  = [ '../libs/fst', '.' ]
+        obj.name      = 'libgtk2_ardour'
+        obj.target    = 'gtk2_ardour'
+        obj.cflags  = [ '-fPIC' ]
+
+    else:
+        # just the normal executable version of the GTK GUI
+        if bld.env['build_target'] == 'mingw':
+            obj = bld (features = 'cxx c cxxprogram winres')
+        else:
+            obj = bld (features = 'cxx c cxxprogram')
+        # operate on copy to avoid adding sources twice
+        obj.source    = list(gtk2_ardour_sources)
+        obj.target = 'ardour-' + str (bld.env['VERSION'])
+        obj.includes = ['.']
+        obj.ldflags = ['-no-undefined']
+
+        if bld.is_defined('WINDOWS_VST_SUPPORT'):
+        # Windows VST support mingw
+            obj.includes += [ '../libs/fst' ]
+
+    # at this point, "obj" refers to either the normal native executable
+    # OR the shared library built for use with wine on linux.
+
+    obj.use      = [ 'libpbd',
+                     'libardour',
+                     'libardour_cp',
+                     'libtimecode',
+                     'libmidipp',
+                     'libgtkmm2ext',
+                     'libcanvas',
+                     'libptformat',
+                     ]
+
+    obj.defines = [
+        'PACKAGE="' + I18N_PACKAGE + '"',
+        'DATA_DIR="' + os.path.normpath(bld.env['DATADIR']) + '"',
+        'CONFIG_DIR="' + os.path.normpath(bld.env['SYSCONFDIR']) + '"',
+        'LOCALEDIR="' + os.path.normpath(bld.env['LOCALEDIR']) + '"',
+        ]
+    obj.install_path = bld.env['DLLDIR']
+    obj.linkflags    = ''
+    obj.uselib       = 'UUID FLAC FONTCONFIG GLIBMM GTHREAD GTK OGG CURL DL GTKMM CANVAS FFTW3F LO TAGLIB XML '
+
+    if sys.platform == 'darwin':
+        obj.uselib += ' AUDIOUNITS OSX '
+        obj.use    += ' libappleutility'
+        obj.source += [ 'cocoacarbon.mm', 'bundle_env_cocoa.cc' ]
+    elif bld.env['build_target'] == 'mingw':
+        obj.source += [ 'bundle_env_mingw.cc' ]
+        obj.source += [ 'windows_icon.rc' ]
+    else:
+        obj.source += [ 'bundle_env_linux.cc' ]
+
+    obj.includes += ['../libs']
+
+    obj.use += 'libptformat'
+
+    if bld.env['build_target'] == 'mingw':
+        obj.linkflags += ' -mwindows'
+
+    if bld.is_defined('HAVE_SUIL'):
+        obj.source += [ 'lv2_plugin_ui.cc' ]
+        obj.use += [ 'SUIL' ]
+
+    if bld.is_defined('HAVE_FFTW35F') and bld.env['build_target'] != 'mingw':
+        bld.env['LIB_FFTW3F'] += ['fftw3f_threads']
+
+    if bld.is_defined('NEED_INTL'):
+        obj.linkflags += ' -lintl'
+
+    if bld.is_defined('WINDOWS_VST_SUPPORT'):
+        obj.source += [ 'windows_vst_plugin_ui.cc' ]
+        obj.defines += [ 'WINDOWS_VST_SUPPORT' ]
+        if bld.env['build_target'] != 'mingw':
+            obj.use += [ 'X11' ]
+
+    if bld.is_defined('LXVST_SUPPORT'):
+        obj.source += [ 'linux_vst_gui_support.cc', 'lxvst_plugin_ui.cc' ]
+        obj.defines += [ 'LXVST_SUPPORT' ]
+        obj.use += [ 'X11' ]
+
+    if bld.is_defined('WINDOWS_VST_SUPPORT') or bld.is_defined('LXVST_SUPPORT'):
+        obj.source += [ 'vst_plugin_ui.cc' ]
+
+    if bld.is_defined('PHONE_HOME'):
+        obj.defines += [ 'PHONE_HOME' ]
+
+    if bld.is_defined('HAVE_COREAUDIO'):
+        TaskGen.task_gen.mappings['.mm'] = TaskGen.task_gen.mappings['.cc']
+        obj.use += ' libappleutility '
+
+    if bld.is_defined('AUDIOUNIT_SUPPORT'):
+        obj.source += [ 'au_pluginui.mm' ]
+
+    # Wrappers
+
+    wrapper_subst_dict = {
+            'INSTALL_PREFIX' : bld.env['PREFIX'],
+            'LIBDIR'         : os.path.normpath(bld.env['DLLDIR']),
+            'DATADIR'        : os.path.normpath(bld.env['DATADIR']),
+            'CONFDIR'        : os.path.normpath(bld.env['CONFDIR']),
+            'LIBS'           : 'build/libs',
+            'VERSION'        : str (bld.env['VERSION']),
+            'EXECUTABLE'     : 'build/gtk2_ardour/ardour-' + str (bld.env['VERSION'])
+    }
+
+    def set_subst_dict(obj, dict):
+        for i in dict:
+            setattr(obj, i, dict[i])
+
+    obj              = bld(features = 'subst')
+    obj.source       = 'ardev_common.sh.in'
+    obj.target       = 'ardev_common_waf.sh'
+    obj.chmod        = Utils.O755
+    obj.dict         = wrapper_subst_dict
+    set_subst_dict(obj, wrapper_subst_dict)
+
+    obj              = bld(features = 'subst')
+    obj.source       = 'ardour.sh.in'
+    obj.target       = 'ardour' + str (bld.env['MAJOR'])
+    obj.chmod        = Utils.O755
+    obj.dict         = wrapper_subst_dict
+    obj.install_path = bld.env['BINDIR']
+    set_subst_dict(obj, wrapper_subst_dict)
+
+    if bld.is_defined('WINDOWS_VST_SUPPORT'):
+        obj              = bld(features = 'subst')
+        obj.source       = '../vst/ardourvst.in'
+        obj.target       = 'ardourvst' + str (bld.env['MAJOR'])
+        obj.chmod        = Utils.O755
+        obj.dict         = wrapper_subst_dict
+        obj.install_path = bld.env['BINDIR']
+        set_subst_dict(obj, wrapper_subst_dict)
+
+    # Font configuration
+
+    font_subst_dict = {}
+    font_sizes      = {}
+    base_font       = ""
+
+    # Set up font sizes
+    if sys.platform == 'darwin':
+        basefont = ""
+        font_sizes = {
+                'SMALLER' : '9',
+                'SMALL' : '10',
+                'NORMAL' : '11',
+                'BIG' : '13',
+                'BIGGER' : '17',
+                'LARGE' : '18',
+                'LARGER' : '28',
+                'HUGER' : '36',
+                'MASSIVE' : '60',
+        }
+
+        # There is no acceptable monospace font available on older versions of OS X
+        # and no API on those versions to load TTF files that will work with
+        # GTK/fontconfig/pango.
+        #
+        # In addition, the ArdourMono font gets clipped for some reason on OS X
+        #
+        # Moreover, Lucida Grande just seems to work even though it is not monospace
+        # so just use it.
+        #
+        font_names = {
+            'MONOSPACE' : 'Monaco',
+            'CLOCKFONT' : 'Lucida Grande',
+        }
+    else: # Linux/X11 fonts
+        basefont = '' # unspecified - use system defaults
+        font_sizes = {
+                'SMALLER' : '6',
+                'SMALL' : '7',
+                'NORMAL' : '8',
+                'BIG' : '11',
+                'BIGGER' : '13.5',
+                'LARGE' : '14.5',
+                'LARGER' : '19',
+                'HUGER' : '27',
+                'MASSIVE' : '48',
+        }
+        font_names = {
+                'MONOSPACE' : 'ArdourMono',
+                'CLOCKFONT' : 'ArdourMono',
+        }
+
+    # Set up font substitution dictionary
+    # @FONT_XXXX@
+    for style in ['', 'BOLD', 'ITALIC']:
+        for sizename,points in iter(font_sizes.items()):
+            if (len (style)):
+                key = "_".join (['FONT',style,sizename])
+                fontstyle = " ".join ([basefont,style.lower(),points])
+            else:
+                key = "_".join (['FONT',sizename])
+                fontstyle = " ".join ([basefont,points])
+
+            font_subst_dict[key] = fontstyle
+
+    # @FONT_SIZE_XXXX@
+    for sizename,points in iter(font_sizes.items()):
+            key = "_".join (['FONT_SIZE',sizename])
+            font_subst_dict[key] = points
+
+    # various font names, eg @BOLD_MONOSPACE@
+    for font_sym,text in iter(font_names.items()):
+        key = font_sym
+        font_subst_dict[key] = text
+
+    # RC file
+
+    obj              = bld(features = 'subst')
+    obj.source       = [ 'clearlooks.rc.in' ]
+    obj.target       = 'clearlooks.rc'
+    obj.install_path = bld.env['CONFDIR']
+    set_subst_dict(obj, font_subst_dict)
+
+    obj              = bld(features = 'subst')
+    obj.source       = [ 'default_ui_config.in' ]
+    obj.target       = 'default_ui_config'
+    obj.install_path = bld.env['CONFDIR']
+    set_subst_dict(obj, font_subst_dict)
+
+    # Menus
+    menus_argv = []
+    if sys.platform == 'darwin':
+        menus_argv = [ '-E', '-P', '-D__APPLE__', '-' ]
+    else:
+        menus_argv = [ '-E', '-P' ]
+
+    if bld.is_defined('PTFORMAT'):
+        menus_argv += [ '-DPTFORMAT' ]
+
+    # always build all versions of the menu definitions
+    # so that we can try them out with different program builds.
+    for program in [ 'ardour', 'trx' ]:
+        obj = bld(features = 'command-output')
+        obj.command = 'cpp'
+        obj.command_is_external = True
+        obj.no_inputs = True
+        obj.argv = menus_argv
+        obj.dep_vars = ['PTFORMAT', 'GTKOSX', 'WINDOWS']
+        obj.stdin = program + '.menus.in'
+        obj.stdout = program + '.menus'
+        bld.install_files (bld.env['CONFDIR'], program + '.menus')
+
+    # Freedesktop
+    freedesktop_subst_dict = {
+                    'ARDOUR_EXEC' : str (bld.env['lwrcase_dirname']),
+                    'ARDOUR_ICON' : str (bld.env['lwrcase_dirname']),
+                    'VERSION': str (bld.env['VERSION']),
+    }
+
+    if bld.env['FREEDESKTOP']:
+        obj              = bld(features = 'subst')
+        obj.source       = 'ardour.desktop.in'
+        obj.target       = str (bld.env['lwrcase_dirname']) + '.desktop'
+        obj.chmod        = Utils.O644
+        obj.dict         = freedesktop_subst_dict
+        set_subst_dict(obj, freedesktop_subst_dict)
+
+        obj              = bld(features = 'subst')
+        obj.source       = 'ardour-mime-info.xml'
+        obj.target       = 'ardour.xml'
+        obj.chmod        = Utils.O644
+
+        # build appdata with translations
+        appdata_i18n_mo(bld)
+        appdata_i18n_xmlin(bld)
+        obj              = bld(features = 'subst')
+        obj.source       = 'ardour.appdata.xml.in'
+        obj.target       = str (bld.env['lwrcase_dirname']) + '.appdata.xml'
+        obj.chmod        = Utils.O644
+        obj.dict         = freedesktop_subst_dict
+        set_subst_dict(obj, freedesktop_subst_dict)
+
+    # Keybindings
+
+    # NATIVE ARDOUR BINDING FILES
+    # explicitly state the use of perl here so that it works on windows too
+    # 
+    a_rule = 'perl ../tools/fmt-bindings --platform="%s" --winkey="%s" --accelmap ${SRC[0].abspath()} >${TGT}' % (sys.platform, bld.env['WINDOWS_KEY'] )
+    for b in [ 'ardour' ] :
+        obj = bld(
+            target = b + '.keys',
+            source = [ b + '.keys.in', 'mixer.bindings', 'processor_box.bindings', 'step_editing.bindings', 'monitor.bindings' ],
+            rule = a_rule
+            )
+        obj.install_path = bld.env['CONFDIR']
+        
+    # Icons/Images
+    bld.install_files(os.path.join (bld.env['DATADIR'], 'icons'), bld.path.ant_glob('icons/*.png'))
+    bld.install_files(bld.env['DATADIR'], 'ArdourMono.ttf')
+
+    # Application/Product specific resources (icon, splash)
+    pgmname = Options.options.program_name;
+    bld.install_files(os.path.join(bld.env['DATADIR'], 'resources'), bld.path.ant_glob('resources/' + pgmname + '*'))
+
+    if bld.env['build_target'] == 'mingw':
+        # These icons need to overwrite the files already installed in the icons
+        # directory above. Do this in the external packaging scripts for now.
+        #bld.install_files(os.path.join (bld.env['DATADIR'], 'icons'), bld.path.ant_glob('icons/cursor_square/*.png'))
+        bld.install_files(os.path.join (bld.env['DATADIR'], 'icons'), 'icons/cursor_square/hotspots')
+
+    # Default UI configuration
+    bld.install_files(bld.env['CONFDIR'], 'default_ui_config')
+    # Color Themes. Find each color file for this program only
+    # and install
+    bld.install_files (os.path.join(bld.env['DATADIR'], 'themes'), bld.path.ant_glob ('themes/*-' + Options.options.program_name.lower() + '.colors'));
+
+    # Default export stuff
+    bld.install_files(os.path.join(bld.env['CONFDIR'], 'export'), bld.path.ant_glob('export/*.format'))
+
+    # i18n
+    if bld.is_defined('ENABLE_NLS'):
+        mo_files = bld.path.ant_glob('po/*.mo')
+        for mo in mo_files:
+            lang = os.path.basename(mo.srcpath()).replace('.mo', '')
+            bld.install_as (os.path.join(os.path.normpath(bld.env['LOCALEDIR']), lang, 'LC_MESSAGES', I18N_PACKAGE + '.mo'),
+                            mo)
+
+def i18n(bld):
+        I18N_PACKAGE = 'gtk2_ardour' + bld.env['MAJOR']
+        autowaf.build_i18n(bld, top, 'gtk2_ardour', I18N_PACKAGE, gtk2_ardour_sources,
+                           'Paul Davis')
+        appdata_i18n_pot(bld)
+        appdata_i18n_po(bld)
+
+def i18n_pot(bld):
+        I18N_PACKAGE = 'gtk2_ardour' + bld.env['MAJOR']
+        autowaf.build_i18n_pot(bld, top, 'gtk2_ardour', I18N_PACKAGE, gtk2_ardour_sources,
+                               'Paul Davis')
+        appdata_i18n_pot(bld)
+
+def i18n_po(bld):
+        I18N_PACKAGE = 'gtk2_ardour' + bld.env['MAJOR']
+        autowaf.build_i18n_po(bld, top, 'gtk2_ardour', I18N_PACKAGE, gtk2_ardour_sources,
+                              'Paul Davis')
+        appdata_i18n_po(bld)
+
+def i18n_mo(bld):
+        I18N_PACKAGE = 'gtk2_ardour' + bld.env['MAJOR']
+        autowaf.build_i18n_mo(bld, top, 'gtk2_ardour', I18N_PACKAGE, gtk2_ardour_sources,
+                              'Paul Davis')
+
+def appdata_i18n_pot(bld):
+    potfile = os.path.join(bld.top_dir, 'gtk2_ardour', 'appdata',
+            'ardour.appdata.pot')
+    if bld.cmd == 'i18n_pot':
+        Logs.info('Generating pot file from Ardour appdata')
+        itsfile = os.path.join(bld.top_dir, 'tools', 'as-metainfo.its')
+        adsource = os.path.join(bld.top_dir, 'gtk2_ardour',
+                'ardour.appdata.xml.in.in')
+        Logs.info('Updating ' + potfile)
+        try:
+                subprocess.call(('itstool', '-i', itsfile, '-o', potfile, adsource))
+        except:
+                print ('Error processing appdata pot file - ignored')
+    elif bld.cmd == 'clean' and os.path.exists(potfile):
+        Logs.info('Removing Ardour appdata pot file')
+        os.remove(potfile)
+
+def appdata_i18n_po(bld):
+    autowaf.build_i18n_po(bld, bld.top_dir, os.path.join(
+        'gtk2_ardour', 'appdata'), 'ardour.appdata', 'dummy', 'dummy')
+
+def appdata_i18n_mo(bld):
+    autowaf.build_i18n_mo(bld, bld.top_dir, os.path.join(
+        'gtk2_ardour', 'appdata'), 'ardour.appdata', 'dummy', 'dummy')
+
+def appdata_i18n_xmlin(bld):
+    adxmlinfile = os.path.join(bld.top_dir, 'gtk2_ardour',
+            'ardour.appdata.xml.in')
+    if bld.cmd == 'build':
+        itsfile = os.path.join(bld.top_dir, 'tools', 'as-metainfo.its')
+        adxmlininfile = os.path.join(bld.top_dir, 'gtk2_ardour',
+                'ardour.appdata.xml.in.in')
+        mo_glob = os.path.join(bld.top_dir, 'gtk2_ardour', 'appdata', 'po', '*.mo')
+        mo_files = glob.glob(mo_glob)
+        Logs.info('Generating ' + adxmlinfile)
+        subprocess.call(['itstool', '-i', itsfile, '-o', adxmlinfile,
+            '-j', adxmlininfile] + mo_files)
+    elif bld.cmd == 'clean' and os.path.exists(adxmlinfile):
+        Logs.info('Removing ' + adxmlinfile)
+        os.remove(adxmlinfile)

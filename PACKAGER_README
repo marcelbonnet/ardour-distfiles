@@ -1,0 +1,12 @@
+(1) VST SUPPORT
+
+Please do not distribute Ardour with VST support under the package
+name "ardour" (or any case-variant on that). Use some other name such
+as "ardourvst", "ArdourVST", "ardour-vst" etc. In the near future,
+work will be done to make it possible to share as much as possible of
+the packaging. 
+
+(2) STANDARD TEMPLATES
+
+The templates in ./templates are intended for installation in
+$prefix/share/ardour3/templates.

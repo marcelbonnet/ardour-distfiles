@@ -1,0 +1,150 @@
+#!/usr/bin/env python
+from waflib.extras import autowaf as autowaf
+from waflib import Options
+import os
+import sys
+import platform as PLATFORM
+
+# Version of this package (even if built as a child)
+MAJOR = '0'
+MINOR = '8'
+MICRO = '3'
+GTKMM2EXT_VERSION = "%s.%s.%s" % (MAJOR, MINOR, MICRO)
+
+# Library version (UNIX style major, minor, micro)
+# major increment <=> incompatible changes
+# minor increment <=> compatible changes (additions)
+# micro increment <=> no interface changes
+GTKMM2EXT_LIB_VERSION = '0.8.3'
+
+# Variables for 'waf dist'
+APPNAME = 'gtkmm2ext'
+VERSION = GTKMM2EXT_VERSION
+I18N_PACKAGE = 'gtkmm2ext3'
+
+gtkmm2ext_sources = [
+        'actions.cc',
+        'application.cc',
+        'ardour_icon.cc',
+        'auto_spin.cc',
+        'barcontroller.cc',
+        'binding_proxy.cc',
+        'bindable_button.cc',
+        'bindings.cc',
+        'cairocell.cc',
+        'cairo_icon.cc',
+        'cairo_packer.cc',
+        'cairo_widget.cc',
+        'cell_renderer_color_selector.cc',
+        'cell_renderer_pixbuf_multi.cc',
+        'cell_renderer_pixbuf_toggle.cc',
+        'choice.cc',
+        'click_box.cc',
+        'cursors.cc',
+        'debug.cc',
+        'dndtreeview.cc',
+        'emscale.cc',
+        'focus_entry.cc',
+        'grouped_buttons.cc',
+        'gtk_ui.cc',
+        'gtkapplication.c',
+        'idle_adjustment.cc',
+        'keyboard.cc',
+        'pane.cc',
+        'paths_dialog.cc',
+        'persistent_tooltip.cc',
+        'pixfader.cc',
+        'pixscroller.cc',
+        'popup.cc',
+        'prompter.cc',
+        'scroomer.cc',
+        'searchbar.cc',
+        'selector.cc',
+        'slider_controller.cc',
+        'stateful_button.cc',
+        'tabbable.cc',
+        'tearoff.cc',
+        'textviewer.cc',
+        'treeutils.cc',
+        'utils.cc',
+        'visibility_tracker.cc',
+        'window_proxy.cc',
+        'window_title.cc'
+]
+
+# Mandatory variables
+top = '.'
+out = 'build'
+
+path_prefix = 'libs/gtkmm2ext/'
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    conf.load('compiler_cxx')
+    autowaf.configure(conf)
+    autowaf.check_pkg(conf, 'gtkmm-2.4', uselib_store='GTKMM', atleast_version='2.8')
+    autowaf.check_pkg(conf, 'gtk+-2.0', uselib_store='GTK', atleast_version='2.12.1')
+
+
+def build(bld):
+    # operate on copy to avoid adding sources twice
+    sources = list(gtkmm2ext_sources)
+    if bld.is_tracks_build():
+        sources += [ 'waves_fastmeter.cc', 'fader.cc' ]
+    else:
+        sources += [ 'fastmeter.cc' ]
+
+    if bld.is_defined ('INTERNAL_SHARED_LIBS'):
+        obj              = bld.shlib(features = 'c cxx cshlib cxxshlib', source=sources)
+        # defines for this library
+        obj.defines      = [ 'LIBGTKMM2EXT_DLL_EXPORTS', 'ABSTRACT_UI_EXPORTS' ]
+    else:
+        obj              = bld.stlib(features = 'c cxx cstlib cxxstlib', source=sources)
+        obj.cxxflags     = [ '-fPIC' ]
+        obj.defines      = [ ]
+
+    obj.export_includes = ['.']
+    obj.includes     = ['.']
+    obj.name         = 'libgtkmm2ext'
+    obj.target       = 'gtkmm2ext'
+    obj.uselib       = 'GTKMM GTK XML'
+    obj.use          = [ 'libpbd', 'libardour' ]
+    obj.vnum         = GTKMM2EXT_LIB_VERSION
+    obj.install_path = bld.env['LIBDIR']
+    obj.defines     += [
+                    'PACKAGE="' + I18N_PACKAGE + '"',
+                    'LOCALEDIR="' + os.path.join(
+                            os.path.normpath(bld.env['DATADIR']), 'locale') + '"']
+    if sys.platform == 'darwin':
+        obj.source += ['gtkapplication_quartz.mm']
+    else:
+        obj.source += ['gtkapplication_x11.c']
+
+    # i18n
+    if bld.is_defined('ENABLE_NLS'):
+        mo_files = bld.path.ant_glob('po/*.mo')
+        for mo in mo_files:
+            lang = os.path.basename(mo.srcpath()).replace('.mo', '')
+            bld.install_as (os.path.join(os.path.normpath(bld.env['LOCALEDIR']), lang, 'LC_MESSAGES', I18N_PACKAGE + '.mo'),
+                            mo)
+
+def i18n(bld):
+    autowaf.build_i18n(bld, top, 'libs/gtkmm2ext', I18N_PACKAGE, gtkmm2ext_sources,
+                       'Paul Davis')
+
+def i18n_pot(bld):
+    autowaf.build_i18n_pot(bld, top, 'libs/gtkmm2ext', I18N_PACKAGE, gtkmm2ext_sources,
+                       'Paul Davis')
+
+def i18n_po(bld):
+    autowaf.build_i18n_po(bld, top, 'libs/gtkmm2ext', I18N_PACKAGE, gtkmm2ext_sources,
+                       'Paul Davis')
+
+def i18n_mo(bld):
+    autowaf.build_i18n_mo(bld, top, 'libs/gtkmm2ext', I18N_PACKAGE, gtkmm2ext_sources,
+                       'Paul Davis')
+
+def shutdown():
+    autowaf.shutdown()

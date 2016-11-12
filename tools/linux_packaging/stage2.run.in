@@ -1,0 +1,915 @@
+#!/bin/sh
+
+####################################
+#
+#	stage2.run
+#	Ardour/Mixbus bundle installer
+#	Todd Naugle
+#
+###################################
+
+MAJOR_VERSION="%REPLACE_MAJOR_VERSION%"
+
+PGM_NAME="%REPLACE_PGM%"
+PGM_VENDOR="%REPLACE_VENDOR%"
+PGM_EXEC_FILE="%REPLACE_EXE%${MAJOR_VERSION}"
+
+THE_SHELL="/bin/sh"
+
+if test -z "$INSTALL_DEST_BASE"; then
+	INSTALL_DEST_BASE="/opt"
+	CALL_MKDIR=1
+else
+	CALL_MKDIR=
+fi
+
+USER_BIN_DIR="/usr/local/bin"
+
+PGM_NAME_LOWER=$(echo $PGM_NAME | tr '[:upper:]' '[:lower:]')
+
+USER_NAME=$(logname)
+
+#### Global Variables ####
+HAS_XDG="T"
+MULTABI_BUNDLE=""
+
+########################
+# Function Definitions
+########################
+
+VaildateYesNoQuestion ()
+{
+	# $1 = Question Text
+	
+	local INPUT_OK="n"
+	local USER_INPUT=""
+
+	until test "y" = $INPUT_OK;
+	do
+		echo ""
+		read -p "$1 [y/n]: " USER_INPUT
+		echo ""
+
+		if [ ! -z $USER_INPUT ]; 
+		then		
+			if [ "Y" = $USER_INPUT -o "y" = $USER_INPUT -o "n" = $USER_INPUT -o "N" = $USER_INPUT ];
+			then
+				INPUT_OK="y"
+			fi
+		fi
+	done
+	
+	echo $USER_INPUT | tr '[:upper:]' '[:lower:]'
+	
+}
+
+SystemInstall ()
+{
+
+	# Determine which software install app to use and then install requested package
+	# $1 = Package Name
+
+	if which yum > /dev/null;
+	then
+		${SUPER} yum -y install $1
+		rtrn=$?
+
+		if [ $rtrn -ne 0 ];
+		then
+			echo ""
+			echo "!!! ERROR !!! yum install failed for an unknown reason."
+			echo "Please install package $1 after this installer completes."
+			echo ""
+		fi
+
+	elif which apt-get > /dev/null;
+	then
+		${SUPER} apt-get -y install $1
+		rtrn=$?
+
+		if [ $rtrn -ne 0 ];
+		then
+			echo ""
+			echo "!!! ERROR !!! apt-get install failed for an unknown reason."
+			echo "Please install package $1 after this installer completes."
+			echo ""
+		fi
+
+	else
+		echo ""
+		echo "!!! ERROR !!! - Not able to detect which software install tool to use (yum or apt-get)."
+		echo "Please install package $1 using the system software install tool."
+		echo ""
+		rtrn=1
+	fi
+	
+	return $rtrn
+
+}
+
+########################################################################
+#                                 Main
+########################################################################
+umask 0022
+
+# If you double click a script, some systems don't get the PWD correct.
+# Force it to be correct
+PKG_PATH=$(dirname "$(readlink -f "$0")")
+cd "${PKG_PATH}"
+
+echo ""
+echo "Welcome to the ${PGM_NAME} installer"
+echo ""
+echo "${PGM_NAME} will be installed for user ${USER_NAME} in ${INSTALL_DEST_BASE}"
+echo ""
+#############################
+# Check for root privileges
+#############################
+
+SUPER=""
+NORM_USER=""
+
+if [ "$(id -u)" != "0" ]; then
+
+	if ! which sudo > /dev/null;
+	then
+		echo ""
+		echo "Sudo installed failed, attempting to install using su"
+		echo "Please enter root password below"
+		echo ""
+
+		if ! su -s $THE_SHELL -c "./.stage2.run";
+		then
+			echo ""
+			echo "!!! ERROR !!!"
+			echo ""
+			echo "This installer requires root privileges. It is currently not"
+			echo "running as root AND an attempt to use su failed."
+			echo ""
+			echo "Please correct this by installing and configuring sudo or running"
+			echo "the installer as root (su -s $THE_SHELL -c)."
+			echo ""
+			read -p "Press ENTER to exit installer:" BLAH
+			exit 1
+		fi
+		exit
+	else
+		sudo -k # make sudo forget about cached credentials
+	fi
+
+	if ! sudo date;
+	then
+		echo ""
+		echo "Attempting to install using su"
+		echo "Please enter root password below"
+		echo ""
+
+		if ! su -s $THE_SHELL -c "./.stage2.run";
+		then
+			echo ""
+			echo "!!! ERROR !!!"
+			echo ""
+			echo "This installer requires root privileges. It is currently not"
+			echo "running as root AND an attempt to use both sudo and su failed."
+			echo ""
+			echo "Please correct this by installing and configuring sudo or running"
+			echo "the installer as root (su -s $THE_SHELL -c)."
+			echo ""
+			read -p "Press ENTER to exit installer:" BLAH
+			exit 1
+		fi
+		exit
+	fi
+	SUPER="sudo"
+	
+	# The quoting reqired for the su sanityCheck method does not work when used without
+	# su. Using sh -c in the normal case gets around that, but is a bit of a hack.
+	NORM_USER="sh -c"
+else
+	NORM_USER="su -l $USER_NAME -s $THE_SHELL -c" 
+fi
+
+###############################
+# Check for install destination
+###############################
+
+if test -n "$CALL_MKDIR"; then
+	${SUPER} mkdir -p "$INSTALL_DEST_BASE"
+fi
+
+if [ ! -d ${INSTALL_DEST_BASE} ];
+then
+	echo ""
+	echo "!!! ERROR !!! - Installation location ${INSTALL_DEST_BASE} does not exist!"
+	echo "Installation will not complete."
+	echo ""
+	read -p "Press ENTER to exit installer:" BLAH
+	exit 1
+fi
+
+
+############################
+# Determine processor type
+############################
+
+case `uname -m` in
+	i[3456789]86|x86|i86pc)
+		echo "Architecture is x86"
+		ARCH='x86'
+		;;
+	x86_64|amd64|AMD64)
+		echo "Architecture is x86_64"
+		ARCH='x86_64'
+		;;
+	*)
+		echo ""
+		echo "!!! ERROR !!! - Unknown architecture `uname -m`"
+		echo ""
+		read -p "Press ENTER to exit installer:" BLAH
+		exit 1
+		;;
+esac
+
+###################
+# Determine gcc ABI
+###################
+
+if test -n "$MULTABI_BUNDLE"; then
+	if ! "${PKG_PATH}/.gcc-glibmm-abi-check" --fail --gcc5; then
+		ABI=-gcc4
+	else
+		ABI=-gcc5
+	fi
+  # allow to manually override
+	if test "$1" = "--gcc4"; then
+		ABI=-gcc4
+	fi
+	if test "$1" = "--gcc5"; then
+		ABI=-gcc5
+	fi
+else
+	ABI=
+fi
+
+####################
+# Check disk space
+####################
+
+# We have to check the current folder and the INSTALL_DEST_BASE just
+# in case they are on different devices
+echo "Checking for required disk space"
+
+if [ ! -e .${PGM_NAME}_${ARCH}${ABI}-*.size ]; then
+	echo ""
+	echo "!!! ERROR !!! Can't locate .size file for ${ARCH}${ABI} bundle."
+	echo "This package is broken or does not support ${ARCH}${ABI}."
+	echo ""
+	read -p "Press ENTER to exit installer:" BLAH
+	exit 1
+else
+	REQUIRED_BYTES=$(cat .${PGM_NAME}_${ARCH}${ABI}-*.size)
+
+	#Installer needs 2x the space since the bundle is unpacked locally and then copied
+	REQUIRED_BYTES=$(($REQUIRED_BYTES + $REQUIRED_BYTES))
+
+	#Check space in current folder
+	FREE_BYTES=$(df -P -B 1 "${PKG_PATH}" | grep / | awk '{print $4}')
+
+	if [ ${FREE_BYTES} -le ${REQUIRED_BYTES} ] ; then
+		echo ""
+		echo "!!! ERROR !!! - Insufficient disk space in ${PKG_PATH}"
+		echo "Install requires ${REQUIRED_BYTES} bytes and"
+		echo "there is only ${FREE_BYTES} bytes of free space"
+		echo ""
+		read -p "Press ENTER to exit installer:" BLAH
+		exit 1
+	fi
+
+	#Check space in INSTALL_DEST_BASE
+	FREE_BYTES=$(df -P -B 1 ${INSTALL_DEST_BASE} | grep / | awk '{print $4}')
+
+	if [ ${FREE_BYTES} -le ${REQUIRED_BYTES} ] ; then
+		echo ""
+		echo "!!! ERROR !!! - Insufficient disk space in ${INSTALL_DEST_BASE}"
+		echo "Install requires ${REQUIRED_BYTES} bytes and"
+		echo "there is only ${FREE_BYTES} bytes of free space"
+		echo ""
+		read -p "Press ENTER to exit installer:" BLAH
+		exit 1
+	fi
+fi
+
+#############################
+# Determine C11 stdlibc++ ABI
+#############################
+
+if test -z "$ABI"; then
+	if %REPLACE_GCC5%; then
+		# Ardour was compiled with gcc5, warn on gcc4 systems
+		if ! "${PKG_PATH}/.gcc-glibmm-abi-check" --gcc5; then
+			echo ""
+			echo "WARNING: GCC4/5 libstdc++ ABI Mismatch"
+			echo ""
+			echo "${PGM_NAME} was compiled with gcc5, your system uses an older version of the"
+			echo "standard c++ library. Plugins on your system may not load or plugin-UIs"
+			echo "may cause crashes."
+			echo ""
+			ANSWER=$(VaildateYesNoQuestion "Continue anyway?")
+			if test "n" = $ANSWER; then
+				exit 1
+			fi
+		fi
+	else
+		# Ardour was compiled with gcc4, warn on gcc5 systems
+		if ! "${PKG_PATH}/.gcc-glibmm-abi-check" --gcc4 ; then
+			echo ""
+			echo "WARNING: GCC4/5 libstdc++ ABI Mismatch"
+			echo ""
+			echo "${PGM_NAME} was compiled with gcc4, your system uses a newer version of the"
+			echo "standard c++ library. Plugins on your system may not load or plugin-UIs"
+			echo "may cause crashes."
+			echo ""
+			ANSWER=$(VaildateYesNoQuestion "Continue anyway?")
+			if test "n" = $ANSWER; then
+				exit 1
+			fi
+		fi
+	fi
+fi
+
+if %REPLACE_WINE%; then
+	if test -z "`which wine`"; then
+		echo ""
+		echo "!!! ERROR !!! - 'wine' was not found."
+		echo ""
+		echo "This version of ${PGM_NAME} with Windows VST support requires wine."
+		echo "https://www.winehq.org/"
+		echo ""
+		read -p "Press ENTER to exit installer:" BLAH
+		exit 1
+	fi
+fi
+
+#####################
+# Unpack the bundle
+#####################
+
+FILESYSTEM_TYPE=$(df -P -T "${PKG_PATH}" | grep / | awk '{print $2}')
+echo "Bundle is on ${FILESYSTEM_TYPE} filesystem"
+
+# untar the correct bundle for us to install
+echo "Unpacking bundle for $ARCH${ABI}"
+
+if [ ! -e ${PGM_NAME}_${ARCH}${ABI}-*.tar ]; then
+	echo ""
+	echo "!!! ERROR !!! Can't locate ${ARCH}${ABI} bundle file."
+	echo ""
+	read -p "Press ENTER to exit installer:" BLAH
+	exit 1
+fi
+
+if ! tar -xf ${PGM_NAME}_${ARCH}${ABI}-*.tar; then
+	echo ""
+	echo "!!! ERROR !!! Can't unpack ${ARCH}${ABI} bundle file."
+	echo ""
+	read -p "Press ENTER to exit installer:" BLAH
+	exit 1
+else
+	echo "Bundle unpacked"
+fi
+
+BUNDLE_DIR=$(basename `find -maxdepth 1 -type d -name "${PGM_NAME}_${ARCH}-*"`)
+
+
+#######################
+# Check for xdg utils
+#######################
+
+#load the file that contains the translated names of the users directories
+if [ -e /home/${USER_NAME}/.config/user-dirs.dirs ]; then
+	. /home/${USER_NAME}/.config/user-dirs.dirs
+fi
+
+if [ "$(id -u)" != "0" ]; then
+	USER_DESKTOP_DIR=${XDG_DESKTOP_DIR:-$HOME/Desktop}
+else
+	#running as root with su makes this more difficult
+	DESKTOP_FOLDER=$(echo ${XDG_DESKTOP_DIR:-$HOME/Desktop} | awk -F/ '{print $NF}')
+	USER_DESKTOP_DIR="/home/${USER_NAME}/${DESKTOP_FOLDER}"
+fi
+
+XDG_MENU_VER=$(xdg-desktop-menu --version 2> /dev/null)
+if [ -z "$XDG_MENU_VER" ];
+then
+	echo "System does not have xdg-desktop-menu installed"
+	HAS_XDG="F"
+fi
+
+XDG_ICON_VER=$(xdg-icon-resource --version 2> /dev/null)
+if [ -z "$XDG_ICON_VER" ];
+then
+	echo "System does not have xdg-icon-resource installed"
+	HAS_XDG="F"
+fi
+
+#################################################
+# Set up libwine.so
+#################################################
+if %REPLACE_WINE%; then
+	echo ""
+	echo "Searching libwine.so (Windows VST support)"
+	# we need to add libwine to ardour's LD_LIBRARY_PATH
+	# libwine itself includes paths to the various system-components
+	# which may be different on each platform.
+	#
+	# There's some chicken/egg here: ardour.exe.so is linked against libwine.so
+	# at build-time. wine/wineloader assumes a windows-application (which does not use libwine
+	# directly) and does not set up the LD path to libwine itself. the application terminates
+	# (missing libs) before it even starts..
+	#
+	# wine itself does not provide means to find the location of libwine.
+	# /usr/bin/wine is usually shell-script and libwine.so can be found in
+	# various places on different distros.
+	#
+	# if this check were quick and easy.. it should be done in the startup-script, but it's not
+	# so here we go... (updating wine may require re-installing ardour)
+	#
+	# on recent Ubuntu wine does load both:
+	#   /usr/lib/i386-linux-gnu/libwine.so.1
+	# AND
+	#   /usr/lib/x86_64-linux-gnu/libwine.so.1
+	# so we need to work around this (thanks).
+	# (this hack break 64bit LinuxVST builds, but we don't do those anyway)
+
+	LIBWINE=$(
+		LD_DEBUG=files wine `pwd`/${BUNDLE_DIR}/lib/ardour-vst-scanner.exe.so 2>&1 \
+						 | grep -e "calling init:.*libwine" \
+						 | sed 's/^.*calling init: //' \
+						 | grep -v x86_64-linux-gnu \
+						 | uniq \
+			)
+	if ! test -f "$LIBWINE"; then
+		echo ""
+		echo "!!! ERROR !!! - 'libwine.so*' was not found."
+		echo ""
+		read -p "Press ENTER to exit installer:" BLAH
+		exit 1
+	fi
+	echo "Using: $LIBWINE"
+  # this replaces/overwrites the bundled libwine
+	cp -L "$LIBWINE" `pwd`/${BUNDLE_DIR}/lib/libwine.so.1
+fi
+
+#################################################
+# Check if system libs are OK (libc, etc)
+#################################################
+
+echo ""
+echo "Checking system libs to see if they are compatible with ${PGM_NAME}."
+echo ""
+
+LIB_ERROR="F"
+LD_PATH=`pwd`/${BUNDLE_DIR}/lib
+
+# check the main App
+LDD_RESULT=$(LD_LIBRARY_PATH=${LD_PATH} ldd ${BUNDLE_DIR}/bin/${PGM_NAME_LOWER}-* 2>&1 > /dev/null | grep -v "no version information")
+
+if [ -n "$LDD_RESULT" ];
+then
+	echo "$LDD_RESULT"
+	LIB_ERROR="T"
+fi
+	
+# check the libs
+LIB_FILES=$(find ${BUNDLE_DIR}/lib -name "*.so")
+
+for path in $LIB_FILES
+do
+	LDD_RESULT=$(LD_LIBRARY_PATH=${LD_PATH} ldd $path 2>&1 > /dev/null | grep -v "no version information")
+	if [ -n "$LDD_RESULT" ];
+	then
+		echo "$LDD_RESULT"
+		LIB_ERROR="T"
+	fi
+done
+
+if test "T" = $LIB_ERROR;
+then
+	echo ""
+	echo "!!! ERROR !!! - Missing library detected!"
+	echo "This system does not have the correct libs to run ${PGM_NAME}."
+	echo "Installation will not complete. Please use a compatible distro."
+	echo ""
+	read -p "Press ENTER to exit installer:" BLAH
+	exit 1
+fi
+
+################################
+# Setup derived variables
+################################
+PGM_VERSION=$(echo ${BUNDLE_DIR} | cut -d- -f2)
+PGM_BUILDTYPE=$(echo ${BUNDLE_DIR} | cut -d- -f3)
+
+if [ -z ${PGM_BUILDTYPE} ];
+then
+	PGM_FULL_NAME="${PGM_NAME}-${PGM_VERSION}"
+	ICON_NAME="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}"			#no dash between name and version since dash seperates vendor from program
+	MENU_FILE="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}.desktop"	#no dash between name and version since dash seperates vendor from program
+	DESKTOP_LINK_FILE="${PGM_NAME}_${PGM_VERSION}.desktop"
+else
+	PGM_FULL_NAME="${PGM_NAME}-${PGM_VERSION}-${PGM_BUILDTYPE}"
+	ICON_NAME="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}_${PGM_BUILDTYPE}"			#no dash between name and version since dash seperates vendor from program
+	MENU_FILE="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}_${PGM_BUILDTYPE}.desktop"	#no dash between name and version since dash seperates vendor from program
+	DESKTOP_LINK_FILE="${PGM_NAME}_${PGM_VERSION}_${PGM_BUILDTYPE}.desktop"
+fi
+
+PGM_EXEC_PATH="${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/${PGM_EXEC_FILE}"
+ICON_PATH="${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/share/resources"
+MENU_FILE_PATH="${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/share"
+
+################################
+# Install bundle and Menu/Link
+################################
+
+# uninstall any older versions
+UNINSTALLERS=$(find ${INSTALL_DEST_BASE} -maxdepth 1 -type f -name "${PGM_NAME}-*.uninstall.sh")
+if [ ! -z "$UNINSTALLERS" ];
+then
+	for i in $UNINSTALLERS; do
+		echo ""
+		echo "Found existing ${PGM_NAME} installation."
+		
+		ANSWER=$(VaildateYesNoQuestion "Do you want to run the uninstaller ${i} ?")
+
+		if test "y" = $ANSWER;
+		then
+			echo ""
+			echo "Running uninstaller $i"
+			
+			${i}
+			${SUPER} rm -f ${i}
+		fi
+	done
+fi
+
+
+# install 
+
+echo ""
+echo "Installing ${PGM_NAME} ${PGM_VERSION} in ${INSTALL_DEST_BASE}"
+echo ""
+
+# Copy the new version in the install directory
+${SUPER} mkdir ${INSTALL_DEST_BASE}/${PGM_FULL_NAME} 
+${SUPER} cp -Rf	${BUNDLE_DIR}/* ${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/
+
+# write the desktop/menu file
+echo "[Desktop Entry]" > /tmp/${MENU_FILE}
+echo "Encoding=UTF-8" >> /tmp/${MENU_FILE}
+echo "Version=1.0" >> /tmp/${MENU_FILE}
+echo "Type=Application" >> /tmp/${MENU_FILE}
+echo "Terminal=false" >> /tmp/${MENU_FILE}
+echo "Exec=${PGM_EXEC_PATH}" >> /tmp/${MENU_FILE}
+if [ -z ${PGM_BUILDTYPE} ];
+then
+	echo "Name=${PGM_NAME}-${PGM_VERSION}" >> /tmp/${MENU_FILE}
+else
+	echo "Name=${PGM_NAME}-${PGM_VERSION}-${PGM_BUILDTYPE}" >> /tmp/${MENU_FILE}
+fi
+echo "Icon=${ICON_NAME}" >> /tmp/${MENU_FILE}
+echo "Comment=Digital Audio Workstation" >> /tmp/${MENU_FILE}
+echo "Categories=AudioVideo;AudioEditing;Audio;Recorder;" >> /tmp/${MENU_FILE}
+
+chmod ugo+rx /tmp/${MENU_FILE}
+${SUPER} mv /tmp/${MENU_FILE} ${MENU_FILE_PATH}/.
+
+# install the Menu, Link, and Icon(s)
+if [ "T" = ${HAS_XDG} ];
+then
+	echo "Adding ${PGM_NAME} to the applications menu"
+	${SUPER} xdg-icon-resource install --context apps --size 16 ${ICON_PATH}/${PGM_NAME}-icon_16px.png ${ICON_NAME}
+	${SUPER} xdg-icon-resource install --context apps --size 22 ${ICON_PATH}/${PGM_NAME}-icon_22px.png ${ICON_NAME}
+	${SUPER} xdg-icon-resource install --context apps --size 32 ${ICON_PATH}/${PGM_NAME}-icon_32px.png ${ICON_NAME}
+	${SUPER} xdg-icon-resource install --context apps --size 48 ${ICON_PATH}/${PGM_NAME}-icon_48px.png ${ICON_NAME}
+	${SUPER} xdg-icon-resource install --context apps --size 256 ${ICON_PATH}/${PGM_NAME}-icon_256px.png ${ICON_NAME}
+
+	if [ -e ${ICON_PATH}/${PGM_NAME}_icon.svg -a -d /usr/share/icons/hicolor/scalable/apps ];
+	then
+		${SUPER} cp -f ${ICON_PATH}/${PGM_NAME}_icon.svg  /usr/share/icons/hicolor/scalable/apps/${ICON_NAME}.svg
+	fi
+
+	${SUPER} xdg-desktop-menu install ${MENU_FILE_PATH}/${MENU_FILE}
+	${SUPER} xdg-desktop-menu forceupdate --mode system			# Some systems need an extra kick
+	
+	echo ""
+	echo "Creating a desktop link for ${PGM_NAME} in ${USER_DESKTOP_DIR}"
+	cp ${MENU_FILE_PATH}/${MENU_FILE} "${USER_DESKTOP_DIR}/${DESKTOP_LINK_FILE}"
+	chmod ugo+rwx "${USER_DESKTOP_DIR}/${DESKTOP_LINK_FILE}"
+else
+	echo ""
+	echo "Creating a desktop link for ${PGM_NAME} in ${USER_DESKTOP_DIR}"
+	cp ${MENU_FILE_PATH}/${MENU_FILE} "${USER_DESKTOP_DIR}/${DESKTOP_LINK_FILE}"
+	chmod ugo+rwx "${USER_DESKTOP_DIR}/${DESKTOP_LINK_FILE}"
+fi
+
+echo ""
+echo "Copying uninstall script to ${INSTALL_DEST_BASE}"
+echo ""
+
+${SUPER} cp -f ${BUNDLE_DIR}/bin/*.uninstall.sh ${INSTALL_DEST_BASE}/.
+
+# Create link to the program in user bin
+
+echo ""
+echo "Creating link ${PGM_NAME}${MAJOR_VERSION} in ${USER_BIN_DIR}"
+echo ""
+
+if [ -d "${USER_BIN_DIR}" ]; then
+	if [ -e "${USER_BIN_DIR}/${PGM_NAME}${MAJOR_VERSION}" ]; then
+		${SUPER} rm -f ${USER_BIN_DIR}/${PGM_NAME}${MAJOR_VERSION}
+	fi
+
+	cd "${USER_BIN_DIR}"
+	${SUPER} ln -sf ${PGM_EXEC_PATH} ${PGM_NAME}${MAJOR_VERSION}
+	cd "${PKG_PATH}"
+	
+else
+	echo "Can not create link because ${USER_BIN_DIR} does not exist"
+fi
+
+###########################
+# Check Jack and qjackctl
+###########################
+
+echo ""
+echo "Checking to see if Jack is installed"
+echo ""
+
+JACK_INSTALLED="f"
+
+if which jackd > /dev/null; then
+	JACK_INSTALLED="t"
+	echo "Jack already present"
+elif which jackdbus > /dev/null; then
+	echo ""
+	echo "jackdbus was found but not jackd. Jack version compatibility check cannot be performed."
+	echo ""
+	JACK_INSTALLED="i"
+else
+	echo ""
+	echo "The program Jack is missing from this system."
+	echo ""
+	echo "Jack is a very useful utility to allow you to interconnect $PGM_NAME and other audio/MIDI applications."
+	echo "You can use $PGM_NAME without it, but you may find it useful to have around."
+	echo ""
+
+	ANSWER=$(VaildateYesNoQuestion "Install jack using system software repository?")
+
+	if test "y" = $ANSWER;
+	then
+		echo "Attempting to install Jack"
+		SystemInstall "jackd"
+		
+		if [ $? -ne 0 ];
+		then
+			echo ""
+			read -p "Press ENTER to continue:" BLAH
+		else
+			JACK_INSTALLED="t"
+		fi
+	fi
+fi
+
+# Check to see if Jack is new enough to operate correctly.
+
+if [ "t" = ${JACK_INSTALLED} ];
+then
+	JACK_VERSION_OK="f"
+	JACK_VER_STRING=$(jackd --version | grep -e "jackd.*protocol")
+	JACK_NAME=$(echo $JACK_VER_STRING | awk '{print $1}')
+	JACK_VERSION=$(echo $JACK_VER_STRING | awk '{print $3}')
+	JACK_VERSION_MAJOR=$(echo $JACK_VERSION | awk 'BEGIN{FS="."}{print $1}')
+	JACK_VERSION_MIDDLE=$(echo $JACK_VERSION | awk 'BEGIN{FS="."}{print $2}')
+	JACK_VERSION_MINOR=$(echo $JACK_VERSION | awk 'BEGIN{FS="."}{print $3}')
+
+	if [ "jackd" = ${JACK_NAME} ];
+	then
+		if [ ${JACK_VERSION_MAJOR} -eq 0 ];
+		then
+			if [ ${JACK_VERSION_MIDDLE} -eq 121 ];
+			then
+				if [ ${JACK_VERSION_MINOR} -ge 3 ];
+				then
+					JACK_VERSION_OK="t"
+				fi
+			elif [ ${JACK_VERSION_MIDDLE} -gt 121 ];
+			then
+				JACK_VERSION_OK="t"
+			fi
+		elif [ ${JACK_VERSION_MAJOR} -gt 0 ];
+		then
+			JACK_VERSION_OK="t"
+		fi
+	elif [ "jackdmp" = ${JACK_NAME} ];
+	then
+		if [ ${JACK_VERSION_MAJOR} -eq 1 ];
+		then
+			if [ ${JACK_VERSION_MIDDLE} -eq 9 ];
+			then
+				if [ ${JACK_VERSION_MINOR} -ge 8 ];
+				then
+					JACK_VERSION_OK="t"
+				fi
+			elif [ ${JACK_VERSION_MIDDLE} -gt 9 ];
+			then
+				JACK_VERSION_OK="t"
+			fi
+		elif [ ${JACK_VERSION_MAJOR} -gt 1 ];
+		then
+			JACK_VERSION_OK="t"
+		fi
+	fi
+
+	if [ "t" = ${JACK_VERSION_OK} ];
+	then
+		echo ""
+		echo "Jack Version Check OK (${JACK_VER_STRING})"
+		echo ""
+	else
+		echo ""
+		echo "!!! WARNING !!! - The version of Jack on this system is too old!"
+		echo "Using an old version of Jack is not recommended. Please update"
+		echo "Jack for best results."
+		echo ""
+		echo "System Jack version:"
+		echo "   ${JACK_VER_STRING}"
+		echo ""
+		echo "Recommended minimum versions:"
+		echo "   Jack1 - 0.121.3"
+		echo "   Jack2 - 1.9.8"
+		echo ""
+		read -p "Press ENTER to continue:" BLAH
+	fi
+fi
+
+if ! which qjackctl > /dev/null;
+then
+	echo ""
+	echo "The program QjackCtl is missing from this system."
+	echo "QjackCtl is an extremely useful tool for any system that runs JACK applications like $PGM_NAME."
+	echo "We recommend that you install it."
+	echo ""
+
+	ANSWER=$(VaildateYesNoQuestion "Install QjackCtl using system software repository?")
+
+	if test "y" = $ANSWER;
+	then
+		echo "Attempting to install QjackCtl"
+		SystemInstall "qjackctl"
+
+		if [ $? -ne 0 ];
+		then
+			echo ""
+			read -p "Press ENTER to continue:" BLAH
+		fi
+	fi
+fi
+
+
+########################
+# Run Sanity Check
+########################
+
+USER_GROUP_ADJUSTED="f"
+
+if ! ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -a > /dev/null";
+then
+	echo ""
+	echo "System failed the quick sanity check... Looking for the cause"
+
+	if ! ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -rt > /dev/null";
+	then
+		echo ""
+		echo "System does not allow realtime for the current user... Looking for a solution"		
+		
+		if ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -hasaudiogroup > /dev/null";
+		then
+			if ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -memberaudiogroup > /dev/null 2>&1";
+			then
+				## This is an odd case. We have an audio group and are a member.
+				echo ""
+				echo "!!! WARNING !!! - The current user can not execute realtime processes."
+				echo "This will adversely affect audio latency."
+				echo "This system has an audio group and the user is a member. If jack was"
+				echo "just installed, a simple log out/in may fix this."
+				echo ""
+				echo "For best results, please correct this on your system."
+				echo "(Hint: check /etc/security/limits.conf or /etc/security/limits.d/)" 
+				echo ""
+				read -p "Press ENTER to continue:" BLAH
+			else
+				# Not a member of an audio group. Try to fix it.
+				
+				if ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -hasgroup audio > /dev/null && find /etc/security -type f -name "*.conf" | xargs grep -q "^@audio.*rtprio" ";
+				then
+					# add user to audio group
+					echo ""
+					echo "Adding user ${USER_NAME} to the audio group."
+					echo "This should allow you to run realtime tasks. Please re-login for this change to take affect."
+					echo ""
+					read -p "Press ENTER to continue:" BLAH
+
+					if ${SUPER} usermod -a -G audio ${USER_NAME};
+					then
+						USER_GROUP_ADJUSTED="t"
+					else
+						echo ""
+						echo "!!! ERROR !!! - Not able to add user to the audio group (usermod failed)!"
+						echo ""
+						echo "Please add yourself to the audio group and re-login"
+						echo ""
+						read -p "Press ENTER to continue:" BLAH
+					fi
+
+				elif ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -hasgroup jackuser > /dev/null && find /etc/security -type f -name "*.conf" | xargs grep -q "^@jackuser.*rtprio" ";
+				then
+					# add user to jackuser group
+					echo ""
+					echo "Adding user ${USER_NAME} to the jackuser group."
+					echo "This should allow you to run realtime tasks. Please re-login for this change to take affect."
+					echo ""
+					read -p "Press ENTER to continue:" BLAH
+
+					if ${SUPER} usermod -a -G jackuser ${USER_NAME};
+					then
+						USER_GROUP_ADJUSTED="t"
+					else
+						echo ""
+						echo "!!! ERROR !!! - Not able to add user to the jackuser group."
+						echo ""
+						echo "Please add yourself to the audio group and re-login"
+						echo ""
+						read -p "Press ENTER to continue:" BLAH
+					fi
+					
+
+				fi
+			fi
+		else
+			# No audio group found on this system!
+			echo ""
+			echo "!!! WARNING !!! - The system does not seem to have an audio group (audio or jackuser)."
+			echo ""
+			echo "We will not attempt to fix this. Please configure your system to allow"
+			echo "non-root users to execute realtime tasks."
+			echo ""
+			read -p "Press ENTER to continue:" BLAH
+		fi
+	fi
+
+	if ! ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -freqscaling > /dev/null";
+	then
+		echo ""
+		echo "!!! WARNING !!! - Your system seems to use frequency scaling."
+		echo "This can have a serious impact on audio latency."
+		echo "For best results turn it off, e.g. by choosing the 'performance' governor."
+		echo ""
+		read -p "Press ENTER to continue:" BLAH
+	fi
+
+	if [ "f" = $USER_GROUP_ADJUSTED ];
+	then
+		if ! ${NORM_USER} "${INSTALL_DEST_BASE}/${PGM_FULL_NAME}/bin/sanityCheck -memlock > /dev/null";
+		then
+			echo ""
+			echo "!!! WARNING !!! - You are not allowed to lock memory."
+			echo ""
+			echo "We will not attempt to fix this. Please configure your system to allow"
+			echo "non-root users to execute lock memory."
+			echo ""
+			read -p "Press ENTER to continue:" BLAH
+		fi
+	fi
+fi
+
+
+########################
+# Install Complete
+########################
+
+echo ""
+echo "Cleaning up"
+rm -rf ${BUNDLE_DIR}/
+
+echo ""
+echo "!!! Install Complete !!!"
+
+if [ "t" = $USER_GROUP_ADJUSTED ];
+then
+	echo "You will need to logout and then login again for all changes to be complete"
+fi
+
+echo ""
+read -p "Press ENTER to exit installer:" BLAH
+
+

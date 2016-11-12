@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+from waflib.extras import autowaf as autowaf
+from waflib import Options
+import os
+
+libappleutility_sources = [
+        'AUOutputBL.cpp',
+        'AUParamInfo.cpp',
+        'CAAudioChannelLayout.cpp',
+        'CAAudioChannelLayoutObject.cpp',
+        'CAAudioUnit.cpp',
+        'CAAUParameter.cpp',
+        'CABufferList.cpp',
+        'CACFDictionary.cpp',
+        'CACFNumber.cpp',
+        'CACFString.cpp',
+        'CAComponent.cpp',
+        'CAComponentDescription.cpp',
+        'CADebugMacros.cpp',
+        'CAStreamBasicDescription.cpp',
+        'CAXException.cpp'
+]
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    autowaf.configure(conf)
+    if conf.env['build_target'] in ['panther', 'tiger', 'leopard'] or (Options.options.ppc and conf.env['build_target'] == 'snowleopard'):
+        conf.env.append_value ('CFLAGS', '-DCOREAUDIO105')
+        conf.env.append_value ('CXXFLAGS', '-DCOREAUDIO105')
+        conf.define ('COREAUDIO105', 1)
+
+def build(bld):
+    obj                = bld(features = 'cxx cxxshlib')
+    obj.uselib         = 'AUDIOUNITS OSX'
+    obj.source         = '';
+    if bld.is_defined('COREAUDIO105'):
+        obj.export_includes = ['CoreAudio105']
+        obj.source += ' CoreAudio105/CAAudioFile.cpp';
+        for src in libappleutility_sources:
+            obj.source += ' CoreAudio105/' + src;
+    else:
+        obj.export_includes = ['CoreAudio/PublicUtility']
+        for src in libappleutility_sources:
+            obj.source += ' CoreAudio/PublicUtility/' + src;
+
+    # apple did not write this library with full symbol export control
+    # so we need to override any visibility default.
+    autowaf.ensure_visible_symbols (obj, True)
+    obj.includes       = ['.']
+    obj.name           = 'libappleutility'
+    obj.target         = 'appleutility'
+    obj.install_path   = os.path.join(bld.env['LIBDIR'], 'appleutility')
+
+
+def shutdown():
+    autowaf.shutdown()
+
+def i18n(bld):
+    pass

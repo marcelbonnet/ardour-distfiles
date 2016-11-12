@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+from waflib.extras import autowaf as autowaf
+import os
+
+# Version of this package (even if built as a child)
+QM_DSP_VERSION = '0.0.0'
+
+# Library version (UNIX style major, minor, micro)
+# major increment <=> incompatible changes
+# minor increment <=> compatible changes (additions)
+# micro increment <=> no interface changes
+QM_DSP_LIB_VERSION = '0.0.0'
+
+# Variables for 'waf dist'
+APPNAME = 'qm-dsp'
+VERSION = QM_DSP_VERSION
+
+# Mandatory variables
+top = '.'
+out = 'build'
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    conf.load('compiler_cxx')
+    autowaf.configure(conf)
+
+def build(bld):
+    # Host Library
+    obj = bld(features = 'cxx cxxshlib')
+    obj.source = '''
+            dsp/onsets/DetectionFunction.cpp
+            dsp/onsets/PeakPicking.cpp
+            dsp/phasevocoder/PhaseVocoder.cpp
+            dsp/rateconversion/Decimator.cpp
+            dsp/rhythm/BeatSpectrum.cpp
+            dsp/signalconditioning/DFProcess.cpp
+            dsp/signalconditioning/Filter.cpp
+            dsp/signalconditioning/FiltFilt.cpp
+            dsp/signalconditioning/Framer.cpp
+            dsp/transforms/FFT.cpp
+            dsp/wavelet/Wavelet.cpp
+            maths/Correlation.cpp
+            maths/CosineDistance.cpp
+            maths/KLDivergence.cpp
+            maths/MathUtilities.cpp
+            base/Pitch.cpp
+    '''
+    autowaf.ensure_visible_symbols (obj, True)
+    obj.export_includes = ['.']
+    obj.includes     = ['.']
+    obj.name         = 'libqmdsp'
+    obj.target       = 'qmdsp'
+    obj.vnum         = QM_DSP_VERSION
+    obj.install_path = bld.env['LIBDIR']
+
+def shutdown():
+    autowaf.shutdown()

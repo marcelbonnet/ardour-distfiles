@@ -1,0 +1,184 @@
+#!/usr/bin/env python
+from waflib.extras import autowaf as autowaf
+from waflib import Options
+from waflib import TaskGen
+import os
+import sys
+
+# Version of this package (even if built as a child)
+MAJOR = '4'
+MINOR = '1'
+MICRO = '0'
+LIBPBD_VERSION = "%s.%s.%s" % (MAJOR, MINOR, MICRO)
+
+# Library version (UNIX style major, minor, micro)
+# major increment <=> incompatible changes
+# minor increment <=> compatible changes (additions)
+# micro increment <=> no interface changes
+LIBPBD_LIB_VERSION = '4.1.0'
+
+# Variables for 'waf dist'
+APPNAME = 'libpbd'
+VERSION = LIBPBD_VERSION
+I18N_PACKAGE = 'libpbd4'
+
+# Mandatory variables
+top = '.'
+out = 'build'
+
+path_prefix = 'libs/pbd/'
+
+libpbd_sources = [
+    'basename.cc',
+    'base_ui.cc',
+    'boost_debug.cc',
+    'cartesian.cc',
+    'command.cc',
+    'configuration_variable.cc',
+    'convert.cc',
+    'controllable.cc',
+    'crossthread.cc',
+    'cpus.cc',
+    'debug.cc',
+    'demangle.cc',
+    'enumwriter.cc',
+    'event_loop.cc',
+    'enums.cc',
+    'epa.cc',
+    'error.cc',
+    'ffs.cc',
+    'file_utils.cc',
+    'fpu.cc',
+    'id.cc',
+    'locale_guard.cc',
+    'localtime_r.cc',
+    'malign.cc',
+    'md5.cc',
+    'mountpoint.cc',
+    'openuri.cc',
+    'pathexpand.cc',
+    'pbd.cc',
+    'pool.cc',
+    'property_list.cc',
+    'pthread_utils.cc',
+    'reallocpool.cc',
+    'receiver.cc',
+    'resource.cc',
+    'search_path.cc',
+    'semutils.cc',
+    'shortpath.cc',
+    'signals.cc',
+    'stacktrace.cc',
+    'stateful_diff_command.cc',
+    'stateful.cc',
+    'strreplace.cc',
+    'strsplit.cc',
+    'system_exec.cc',
+    'textreceiver.cc',
+    'timer.cc',
+    'timing.cc',
+    'tlsf.cc',
+    'transmitter.cc',
+    'undo.cc',
+    'uuid.cc',
+    'whitespace.cc',
+    'xml++.cc',
+]
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    conf.load('compiler_cxx')
+    autowaf.configure(conf)
+    autowaf.check_pkg(conf, 'libxml-2.0', uselib_store='XML')
+    autowaf.check_pkg(conf, 'sigc++-2.0', uselib_store='SIGCPP', atleast_version='2.0')
+
+    conf.check(function_name='getmntent', header_name='mntent.h', define_name='HAVE_GETMNTENT',mandatory=False)
+    conf.check(header_name='execinfo.h', define_name='HAVE_EXECINFO',mandatory=False)
+    conf.check(header_name='unistd.h', define_name='HAVE_UNISTD',mandatory=False)
+    if not Options.options.ppc:
+        conf.check_cc(function_name='posix_memalign', header_name='stdlib.h', cflags='-D_XOPEN_SOURCE=600', define_name='HAVE_POSIX_MEMALIGN', mandatory=False)
+    conf.check(function_name='localtime_r', header_name='time.h', define_name='HAVE_LOCALTIME_R',mandatory=False)
+
+    conf.write_config_header('libpbd-config.h', remove=False)
+
+    # Boost headers
+    autowaf.check_header(conf, 'cxx', 'boost/shared_ptr.hpp')
+    autowaf.check_header(conf, 'cxx', 'boost/weak_ptr.hpp')
+    if Options.options.dist_target == 'mingw':
+        conf.check(compiler='cxx',
+                   lib='ole32',
+                   mandatory=True,
+                   uselib_store='OLE')
+
+def build(bld):
+
+    # Make signals_generated.h using signals.py
+    bld(rule = sys.executable + ' ${SRC} ${TGT}', source = 'pbd/signals.py', target = 'pbd/signals_generated.h')
+
+    # Library
+    if bld.is_defined ('INTERNAL_SHARED_LIBS'):
+        obj              = bld.shlib(features = 'cxx cxxshlib', source=libpbd_sources)
+        obj.defines = [ 'LIBPBD_DLL_EXPORTS=1' ]
+    else:
+        obj              = bld.stlib(features = 'cxx cxxstlib', source=libpbd_sources)
+        obj.cxxflags     = [ '-fPIC' ]
+        obj.cflags     = [ '-fPIC' ]
+        obj.defines      = []
+
+    if bld.is_defined('DEBUG_RT_ALLOC'):
+        obj.source += 'debug_rt_alloc.c'
+
+    obj.export_includes = ['.']
+    obj.includes     = ['.']
+    obj.name         = 'libpbd'
+    obj.target       = 'pbd'
+    obj.uselib       = 'GLIBMM SIGCPP XML UUID SNDFILE GIOMM'
+    if sys.platform == 'darwin':
+        TaskGen.task_gen.mappings['.mm'] = TaskGen.task_gen.mappings['.cc']
+        if 'cocoa_open_uri.mm' not in obj.source:
+            obj.source += [ 'cocoa_open_uri.mm' ]
+        obj.uselib += ' OSX'
+    obj.vnum         = LIBPBD_LIB_VERSION
+    obj.install_path = bld.env['LIBDIR']
+    obj.defines     += [ 'PACKAGE="' + I18N_PACKAGE + '"' ]
+
+    if bld.env['build_target'] == 'x86_64':
+        obj.defines += [ 'USE_X86_64_ASM' ]
+    if bld.env['build_target'] == 'mingw':
+        obj.defines += [ 'NO_POSIX_MEMALIGN' ]
+        obj.source += [ 'windows_special_dirs.cc' ]
+        obj.source += [ 'windows_timer_utils.cc' ]
+        obj.source += [ 'windows_mmcss.cc' ]
+        obj.uselib += ' OLE'
+
+    if bld.env['BUILD_TESTS'] and bld.is_defined('HAVE_CPPUNIT'):
+        # Unit tests
+        testobj              = bld(features = 'cxx cxxprogram')
+        testobj.source       = '''
+                test/testrunner.cc
+                test/xpath.cc
+                test/mutex_test.cc
+                test/scalar_properties.cc
+                test/signals_test.cc
+                test/convert_test.cc
+                test/filesystem_test.cc
+                test/natsort_test.cc
+                test/reallocpool_test.cc
+                test/xml_test.cc
+                test/test_common.cc
+        '''.split()
+        if bld.env['build_target'] == 'mingw':
+            testobj.source += [ 'test/windows_timer_utils_test.cc' ]
+        testobj.target       = 'run-tests'
+        testobj.includes     = obj.includes + ['test', '../pbd']
+        testobj.uselib       = 'CPPUNIT XML SNDFILE'
+        testobj.use          = 'libpbd'
+        testobj.name         = 'libpbd-tests'
+        testobj.defines      = [ 'PACKAGE="' + I18N_PACKAGE + '"' ]
+        if sys.platform != 'darwin' and bld.env['build_target'] != 'mingw':
+            testobj.linkflags    = ['-lrt']
+
+def shutdown():
+    autowaf.shutdown()

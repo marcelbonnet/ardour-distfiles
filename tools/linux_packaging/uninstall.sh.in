@@ -1,0 +1,184 @@
+#!/bin/sh
+
+######################################
+#
+#	Ardour/Mixbus bundle uninstaller
+#	Todd Naugle
+#
+#####################################
+
+MAJOR_VERSION="%REPLACE_MAJOR_VERSION%"
+
+PGM_NAME="%REPLACE_PGM%"
+PGM_VENDOR="%REPLACE_VENDOR%"
+PGM_VERSION="%REPLACE_VERSION%"
+PGM_BUILDTYPE="%REPLACE_TYPE%"
+
+INSTALL_DEST_BASE=/opt
+USER_BIN_DIR="/usr/local/bin"
+
+UNINSTALLER="$(readlink -f "$0")"
+
+USER_NAME=$(logname)
+
+
+#### Derived Variables ####
+if [ -z "${PGM_BUILDTYPE}" ]; then
+	PGM_PATH=${INSTALL_DEST_BASE}/${PGM_NAME}-${PGM_VERSION}
+	ICON_NAME="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}"			#no dash between name and version since dash seperates vendor from program
+	MENU_FILE="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}.desktop"	#no dash between name and version since dash seperates vendor from program
+	DESKTOP_LINK_FILE="${PGM_NAME}_${PGM_VERSION}.desktop"
+else
+	PGM_PATH=${INSTALL_DEST_BASE}/${PGM_NAME}-${PGM_VERSION}-${PGM_BUILDTYPE}
+	ICON_NAME="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}_${PGM_BUILDTYPE}"			#no dash between name and version since dash seperates vendor from program
+	MENU_FILE="${PGM_VENDOR}-${PGM_NAME}_${PGM_VERSION}_${PGM_BUILDTYPE}.desktop"	#no dash between name and version since dash seperates vendor from program
+	DESKTOP_LINK_FILE="${PGM_NAME}_${PGM_VERSION}_${PGM_BUILDTYPE}.desktop"
+fi
+
+MENU_FILE_PATH="${PGM_PATH}/share/${MENU_FILE}"
+
+
+#############################
+# Check for root privileges
+#############################
+
+SUPER=""
+
+if [ "$(id -u)" != "0" ]; then
+
+	if ! which sudo > /dev/null;
+	then
+		echo ""
+		echo "Attempting to uninstall using su"
+		echo "Please enter root password below"
+		echo ""
+
+		if ! su -c "${UNINSTALLER}";
+		then
+			echo ""
+			echo "!!! ERROR !!!"
+			echo ""
+			echo "This uninstaller requires root privileges. It is currently not"
+			echo "running as root AND an attempt to use su failed."
+			echo ""
+			echo "Please correct this by installing and configuring sudo or running"
+			echo "the uninstaller as root (su -c)."
+			echo ""
+			read -p "Press ENTER to exit uninstaller:" BLAH
+			exit 1
+		fi
+		exit
+	else
+		sudo -k # make sudo forget about cached credentials
+	fi
+
+	if ! sudo date;
+	then
+		echo ""
+		echo "Attempting to uninstall using su"
+		echo "Please enter root password below"
+		echo ""
+
+		if ! su -c "${UNINSTALLER}";
+		then
+			echo ""
+			echo "!!! ERROR !!!"
+			echo ""
+			echo "This uninstaller requires root privileges. It is currently not"
+			echo "running as root AND an attempt to use both sudo and su failed."
+			echo ""
+			echo "Please correct this by installing and configuring sudo or running"
+			echo "the uninstaller as root (su -c)."
+			echo ""
+			read -p "Press ENTER to exit uninstaller:" BLAH
+			exit 1
+		fi
+		exit
+	fi
+	SUPER="sudo"
+fi
+
+#######################
+# Check for xdg utils
+#######################
+HAS_XDG="T"
+
+#load the file that contains the translated names of the users directories
+if [ -e /home/${USER_NAME}/.config/user-dirs.dirs ]; then
+	. /home/${USER_NAME}/.config/user-dirs.dirs
+fi
+
+if [ "$(id -u)" != "0" ]; then
+	USER_DESKTOP_DIR=${XDG_DESKTOP_DIR:-$HOME/Desktop}
+else
+	#running as root with su makes this more difficult
+	DESKTOP_FOLDER=$(echo ${XDG_DESKTOP_DIR:-$HOME/Desktop} | awk -F/ '{print $NF}')
+	USER_DESKTOP_DIR="/home/${USER_NAME}/${DESKTOP_FOLDER}"
+fi
+
+XDG_MENU_VER=$(xdg-desktop-menu --version 2> /dev/null)
+if [ -z "$XDG_MENU_VER" ];
+then
+	echo "System does not have xdg-desktop-menu installed"
+	HAS_XDG="F"
+fi
+
+XDG_ICON_VER=$(xdg-icon-resource --version 2> /dev/null)
+if [ -z "$XDG_ICON_VER" ];
+then
+	echo "System does not have xdg-icon-resource installed"
+	HAS_XDG="F"
+fi
+
+
+#############
+# Uninstall
+#############
+
+if [ -d ${PGM_PATH} ];
+then
+	echo ""
+	echo "Removing existing ${PGM_NAME} installation at ${PGM_PATH}"
+	echo ""
+
+	if [ "T" = ${HAS_XDG} ];
+	then
+		${SUPER} xdg-desktop-menu uninstall ${MENU_FILE_PATH}
+		${SUPER} xdg-icon-resource uninstall --size 16 ${ICON_NAME}
+		${SUPER} xdg-icon-resource uninstall --size 22 ${ICON_NAME}
+		${SUPER} xdg-icon-resource uninstall --size 32 ${ICON_NAME}
+		${SUPER} xdg-icon-resource uninstall --size 48 ${ICON_NAME}
+		${SUPER} xdg-icon-resource uninstall --size 256 ${ICON_NAME}
+
+		if [ -e /usr/share/icons/hicolor/scalable/apps/${ICON_NAME}.svg ]; 
+		then
+			${SUPER} rm -f /usr/share/icons/hicolor/scalable/apps/${ICON_NAME}.svg
+		fi
+	fi
+
+	if [ -e ${USER_DESKTOP_DIR}/${DESKTOP_LINK_FILE} ];
+	then
+		${SUPER} rm -f ${USER_DESKTOP_DIR}/${DESKTOP_LINK_FILE}
+	fi
+
+	# delete the bin link if it is linked to this version
+	if [ -e "${USER_BIN_DIR}/${PGM_NAME}${MAJOR_VERSION}" ]; 
+	then
+		BIN_LINK_TARGET=$(readlink "${USER_BIN_DIR}/${PGM_NAME}${MAJOR_VERSION}")
+		BIN_LINK_TARGET_DIR=$(dirname "${BIN_LINK_TARGET}")
+
+		if [ "${BIN_LINK_TARGET_DIR}" = "${PGM_PATH}/bin" ];
+		then
+			${SUPER} rm -f "${USER_BIN_DIR}/${PGM_NAME}${MAJOR_VERSION}"
+		fi
+	fi
+	
+
+	# delete the old package
+	${SUPER} rm -rf ${PGM_PATH}
+	${SUPER} rm -f $0
+else
+	echo ""
+	echo "!!! FAILURE !!! - install path ${PGM_PATH} does not exist."
+	echo ""
+fi

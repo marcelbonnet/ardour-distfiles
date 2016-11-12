@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+from waflib.extras import autowaf as autowaf
+from waflib import Options
+import os
+import sys
+import re
+
+I18N_PACKAGE = 'jack-backend'
+
+# Mandatory variables
+top = '.'
+out = 'build'
+
+def options(opt):
+    autowaf.set_options(opt)
+
+def configure(conf):
+    autowaf.check_pkg(conf, 'jack', uselib_store='JACK', atleast_version='0.121.0')
+
+    #
+    # PortAudio is currently used to get a list of audio device names.
+    # We should find a better way to do this that doesn't involve this
+    # kind of dependency.
+    #
+    if Options.options.dist_target == 'mingw':
+        autowaf.check_pkg(conf, 'portaudio-2.0', uselib_store='PORTAUDIO',
+                          atleast_version='19')
+    autowaf.configure(conf)
+
+    if Options.options.libjack_link == 'auto':
+        if Options.options.dist_target == 'mingw' or sys.platform == 'darwin':
+            conf.env['libjack_link'] = "weak"
+        else:
+            conf.env['libjack_link'] = "link"
+    elif Options.options.libjack_link == 'weak':
+        conf.env['libjack_link'] = "weak"
+    else:
+        conf.env['libjack_link'] = "link"
+
+    # Check that metadata API is available and working
+    conf.check_cxx(fragment = "#include <jack/jack.h>\n#include <jack/metadata.h>\nint main(void) { jack_port_uuid(NULL); return 0; }\n",
+                   mandatory = False,
+                   msg = 'Checking for JACK metadata API',
+                   execute = False,
+                   features = ['cxx'],
+                   okmsg = 'ok',
+                   errmsg = 'not found (or broken). JACK metadata API will not be used',
+                   define_name = 'HAVE_JACK_METADATA',
+                   uselib = 'JACK')
+
+    # Check to see if jack_port_rename() is available and working
+    if conf.env['libjack_link'] == 'link':
+            conf.check_cxx(fragment = "#include <jack/jack.h>\nint main(void) { jack_client_t* c; jack_port_t* p; jack_port_rename (c, p, \"foo\"); return 0; }\n",
+                   mandatory = False,
+                   execute = False,
+                   features = ['cxx'],
+                   msg = 'Checking for jack_port_rename()',
+                   okmsg = 'ok',
+                   errmsg = 'not found (or broken). jack_port_rename() will not be used, and jack_port_set_name() will be used instead',
+                   define_name = 'HAVE_JACK_PORT_RENAME',
+                   uselib = 'JACK')
+
+def build(bld):
+    obj = bld(features = 'c cxx cxxshlib')
+    obj.source = [
+            'jack_api.cc',
+            'jack_connection.cc',
+            'jack_audiobackend.cc',
+            'jack_portengine.cc',
+            'jack_utils.cc',
+            'jack_session.cc',
+            'weak_libjack.c',
+            ]
+    obj.includes = ['.']
+    obj.name     = 'jack_audiobackend'
+    obj.target   = 'jack_audiobackend'
+    obj.defines = ['PACKAGE="' + I18N_PACKAGE + '"',
+                   'ARDOURBACKEND_DLL_EXPORTS'
+                   ]
+    obj.use      = 'libardour libpbd ardouralsautil'
+    obj.install_path  = os.path.join(bld.env['LIBDIR'], 'backends')
+    if bld.env['build_target'] != 'mingw':
+        obj.cxxflags = [ '-fPIC' ]
+        obj.cflags   = [ '-fPIC' ]
+    else:
+        obj.cxxflags = [ ]
+        obj.cflags   = [ ]
+
+    if bld.is_defined ('HAVE_JACK_METADATA'):
+        obj.cxxflags += [ '-DHAVE_JACK_METADATA' ]
+        obj.cflags += [ '-DHAVE_JACK_METADATA' ]
+
+    if bld.is_defined ('HAVE_JACK_PORT_RENAME'):
+        obj.cxxflags += [ '-DHAVE_JACK_PORT_RENAME' ]
+        obj.cflags += [ '-DHAVE_JACK_PORT_RENAME' ]
+
+    if (bld.env['build_target'] == 'mingw'):
+        obj.uselib   = [ 'PORTAUDIO' ]
+    else:
+        obj.uselib   = [ ]
+
+    if bld.env['libjack_link'] == 'link':
+        obj.uselib   += [ 'JACK' ]
+    elif bld.env['build_target'] == 'mingw':
+        obj.defines += [ 'USE_WEAK_JACK' ]
+        obj.deps = [ 'weak_libjack.def' ]
+    else:
+        obj.defines += [ 'USE_WEAK_JACK', 'HAVE_JACK_PORT_RENAME' ]
+        obj.deps = [ 'weak_libjack.def' ]
+
+    obj.uselib   += [ 'GLIBMM', 'XML' ];
+
+    #
+    # device discovery code in the jack backend needs ALSA
+    # on Linux.
+    #
+
+    if re.search ("linux", sys.platform) != None:
+       obj.uselib += [ 'ALSA' ]
+

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ArdourMIDIBindings version="1.0.0" name="Korg nanoKONTROL">
+
+<!-- 2010-11-26 Chooch Schubert: Map file creation -->
+  <DeviceInfo bank-size="9" motorized="no" threshold="15"/>
+
+<!-- Transport Controls -->
+  <Binding msg="B0 2c 7f" function="toggle-rec-enable"/>
+  <Binding msg="B0 2d 7f" function="transport-roll"/>
+  <Binding msg="B0 2e 7f" function="transport-stop"/>
+  <Binding msg="B0 2f 7f" action="Transport/Rewind"/>
+  <Binding msg="B0 30 7f" action="Transport/Forward"/>
+  <Binding msg="B0 31 7f" function="loop-toggle"/>
+
+<!-- The "Scene" button toggles between four banks. For this to work as     -->
+<!-- intended, you have to configure all four scenes to be identical.       -->
+<Binding sysex="f0 42 40 0 1 4 0 5f 4f 0 f7" function="set-bank" argument="0"/>
+<Binding sysex="f0 42 40 0 1 4 0 5f 4f 1 f7" function="set-bank" argument="1"/>
+<Binding sysex="f0 42 40 0 1 4 0 5f 4f 2 f7" function="set-bank" argument="2"/>
+<Binding sysex="f0 42 40 0 1 4 0 5f 4f 3 f7" function="set-bank" argument="3"/>
+
+<!--  Channel controls:                                                     -->
+<!--  - The two buttons on each channel are unmarked. I decided to use them -->
+<!--    as "Solo" and "Record Enable".                                      -->
+<!--  - The rotary controls are bound to pandirection.                      -->
+  <Binding channel="1" ctl="2" uri="/route/gain B1"/>
+  <Binding channel="1" ctl="3" uri="/route/gain B2"/>
+  <Binding channel="1" ctl="4" uri="/route/gain B3"/>
+  <Binding channel="1" ctl="5" uri="/route/gain B4"/>
+  <Binding channel="1" ctl="6" uri="/route/gain B5"/>
+  <Binding channel="1" ctl="8" uri="/route/gain B6"/>
+  <Binding channel="1" ctl="9" uri="/route/gain B7"/>
+  <Binding channel="1" ctl="12" uri="/route/gain B8"/>
+  <Binding channel="1" ctl="13" uri="/route/gain B9"/>
+
+  <Binding channel="1" ctl="23" uri="/route/solo B1"/>
+  <Binding channel="1" ctl="33" uri="/route/recenable B1"/>
+  <Binding channel="1" ctl="24" uri="/route/solo B2"/>
+  <Binding channel="1" ctl="34" uri="/route/recenable B2"/>
+  <Binding channel="1" ctl="25" uri="/route/solo B3"/>
+  <Binding channel="1" ctl="35" uri="/route/recenable B3"/>
+  <Binding channel="1" ctl="26" uri="/route/solo B4"/>
+  <Binding channel="1" ctl="36" uri="/route/recenable B4"/>
+  <Binding channel="1" ctl="27" uri="/route/solo B5"/>
+  <Binding channel="1" ctl="37" uri="/route/recenable B5"/>
+  <Binding channel="1" ctl="28" uri="/route/solo B6"/>
+  <Binding channel="1" ctl="38" uri="/route/recenable B6"/>
+  <Binding channel="1" ctl="29" uri="/route/solo B7"/>
+  <Binding channel="1" ctl="39" uri="/route/recenable B7"/>
+  <Binding channel="1" ctl="30" uri="/route/solo B8"/>
+  <Binding channel="1" ctl="40" uri="/route/recenable B8"/>
+  <Binding channel="1" ctl="31" uri="/route/solo B9"/>
+  <Binding channel="1" ctl="41" uri="/route/recenable B9"/>
+
+  <Binding channel="1" ctl="14" uri="/route/pandirection B1"/>
+  <Binding channel="1" ctl="15" uri="/route/pandirection B2"/>
+  <Binding channel="1" ctl="16" uri="/route/pandirection B3"/>
+  <Binding channel="1" ctl="17" uri="/route/pandirection B4"/>
+  <Binding channel="1" ctl="18" uri="/route/pandirection B5"/>
+  <Binding channel="1" ctl="19" uri="/route/pandirection B6"/>
+  <Binding channel="1" ctl="20" uri="/route/pandirection B7"/>
+  <Binding channel="1" ctl="21" uri="/route/pandirection B8"/>
+  <Binding channel="1" ctl="22" uri="/route/pandirection B9"/>
+
+</ArdourMIDIBindings>

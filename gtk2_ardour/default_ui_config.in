@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ardour>
+  <UI>
+    <Option name="icon-set" value="default"/>
+    <Option name="ui-rc-file" value="clearlooks.rc"/>
+    <Option name="color-file" value="dark-ardour"/>
+    <Option name="flat-buttons" value="0"/>
+    <Option name="blink-rec-arm" value="0"/>
+    <Option name="waveform-gradient-depth" value="0"/>
+    <Option name="timeline-item-gradient-depth" value="0.5"/>
+    <Option name="all-floating-windows-are-dialogs" value="0"/>
+    <Option name="transients-follow-front" value="0"/>
+    <Option name="color-regions-using-track-color" value="0"/>
+    <Option name="show-waveform-clipping" value="1"/>
+    <Option name="lock-gui-after-seconds" value="0"/>
+    <Option name="draggable-playhead" value="1"/>
+    <Option name="no-new-session-dialog" value="1"/>
+    <Option name="show-track-meters" value="1"/>
+    <Option name="default-narrow_ms" value="0"/>
+    <Option name="font-scale" value="102400"/>
+  </UI>
+  <Canvas>
+    <Option name="small font" value="@FONT_SMALL@"/>
+    <Option name="smaller font" value="@FONT_SMALLER@"/>
+    <Option name="normal font" value="@FONT_NORMAL@"/>
+    <Option name="big font" value="@FONT_BIG@"/>
+    <Option name="large font" value="@FONT_LARGE@"/>
+    <Option name="larger font" value="@FONT_LARGER@"/>
+    <Option name="huger font" value="@FONT_HUGER@"/>
+    <Option name="massive font" value="@FONT_MASSIVE@"/>
+    <Option name="small bold font" value="bold @FONT_SMALL@"/>
+    <Option name="smaller bold font" value="bold @FONT_SMALLER@"/>
+    <Option name="normal bold font" value="bold @FONT_NORMAL@"/>
+    <Option name="big bold font" value="bold @FONT_BIG@"/>
+    <Option name="large bold font" value="bold @FONT_LARGE@"/>
+    <Option name="larger bold font" value="bold @FONT_LARGER@"/>
+    <Option name="huger bold font" value="bold @FONT_HUGER@"/>
+    <Option name="massive bold font" value="bold @FONT_MASSIVE@"/>
+    <Option name="small italic font" value="italic @FONT_SMALL@"/>
+    <Option name="smaller italic font" value="italic @FONT_SMALLER@"/>
+    <Option name="normal italic font" value="italic @FONT_NORMAL@"/>
+    <Option name="big italic font" value="italic @FONT_BIG@"/>
+    <Option name="large italic font" value="italic @FONT_LARGE@"/>
+    <Option name="larger italic font" value="italic @FONT_LARGER@"/>
+    <Option name="huger italic font" value="italic @FONT_HUGER@"/>
+    <Option name="massive italic font" value="italic @FONT_MASSIVE@"/>
+    <Option name="small monospace font" value="@MONOSPACE@ @FONT_SMALL@"/>
+    <Option name="smaller monospace font" value="@MONOSPACE@ @FONT_SMALLER@"/>
+    <Option name="normal monospace font" value="@MONOSPACE@ @FONT_NORMAL@"/>
+    <Option name="big monospace font" value="@MONOSPACE@ @FONT_BIG@"/>
+    <Option name="large monospace font" value="@MONOSPACE@ @FONT_LARGE@"/>
+    <Option name="larger monospace font" value="@MONOSPACE@ @FONT_LARGER@"/>
+    <Option name="huger monospace font" value="@MONOSPACE@ @FONT_HUGER@"/>
+    <Option name="massive monospace font" value="@MONOSPACE@ @FONT_MASSIVE@"/>
+    <Option name="small bold monospace font" value="bold @MONOSPACE@ @FONT_SMALL@"/>
+    <Option name="smaller bold monospace font" value="bold @MONOSPACE@ @FONT_SMALLER@"/>
+    <Option name="normal bold monospace font" value="bold @MONOSPACE@ @FONT_NORMAL@"/>
+    <Option name="big bold monospace font" value="bold @MONOSPACE@ @FONT_BIG@"/>
+    <Option name="large bold monospace font" value="bold @MONOSPACE@ @FONT_LARGE@"/>
+    <Option name="larger bold monospace font" value="bold @MONOSPACE@ @FONT_LARGER@"/>
+    <Option name="huger bold monospace font" value="bold @MONOSPACE@ @FONT_HUGER@"/>
+    <Option name="massive bold monospace font" value="bold @MONOSPACE@ @FONT_MASSIVE@"/>
+  </Canvas>
+</Ardour>

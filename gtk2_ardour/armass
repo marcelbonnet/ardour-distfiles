@@ -1,0 +1,13 @@
+#!/bin/sh
+MASSIF_OPTIONS="$MASSIF_OPTIONS --time-unit=ms"
+
+TOP=`dirname "$0"`/..
+. $TOP/build/gtk2_ardour/ardev_common_waf.sh
+export ARDOUR_RUNNING_UNDER_VALGRIND=TRUE
+exec valgrind --tool=massif \
+	$MASSIF_OPTIONS \
+	$TOP/$EXECUTABLE --novst "$@"
+
+# analyse output with
+#   ms_print massif.out.<PID>
+# or check out https://projects.kde.org/projects/extragear/sdk/massif-visualizer
